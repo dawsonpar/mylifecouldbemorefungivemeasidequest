@@ -1,22 +1,62 @@
 import { useEffect } from "react";
 import { Scene } from "./scene/Scene";
+import { CardPack } from "./scene/CardPack";
+import { QuestReveal } from "./scene/QuestReveal";
+import { AcceptFlourish } from "./scene/AcceptFlourish";
+import { TrashCan } from "./scene/TrashCan";
+import { CrumpleBall } from "./scene/CrumpleBall";
+import { AcceptOverlay } from "./hud/AcceptOverlay";
 import { useAppStore } from "./state/store";
+import { useKeyboardShortcuts } from "./dev/useKeyboardShortcuts";
+import { useAutoAdvance } from "./scene/useAutoAdvance";
 
 export default function App() {
   const init = useAppStore((s) => s.init);
   const phase = useAppStore((s) => s.phase);
   const poolLoaded = useAppStore((s) => s.poolLoaded);
+  const spin = useAppStore((s) => s.spin);
+  const throwHit = useAppStore((s) => s.throwHit);
 
   useEffect(() => {
     void init();
   }, [init]);
 
+  useKeyboardShortcuts();
+  useAutoAdvance();
+
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-black">
-      <Scene />
+      <Scene>
+        <CardPack />
+        <AcceptFlourish />
+        <QuestReveal />
+        <TrashCan />
+        <CrumpleBall />
+      </Scene>
+      <AcceptOverlay />
       <div className="pointer-events-none absolute right-3 top-3 rounded bg-black/40 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-neutral-400">
-        {phase} {poolLoaded ? "" : "· loading"}
+        {phase}
+        {phase === "spin" && (
+          <span className="ml-2 text-neutral-500">
+            {spin.direction} {spin.speed.toFixed(2)}
+          </span>
+        )}
+        {phase === "throw" && throwHit !== null && (
+          <span className="ml-2 text-neutral-500">{throwHit ? "hit" : "miss"}</span>
+        )}
+        {!poolLoaded && <span className="ml-2 text-neutral-500">loading</span>}
       </div>
+      <DevHints />
+    </div>
+  );
+}
+
+function DevHints() {
+  return (
+    <div className="pointer-events-none absolute bottom-3 left-3 max-w-md rounded bg-black/40 px-3 py-2 font-mono text-[10px] leading-relaxed text-neutral-400">
+      <div className="mb-1 uppercase tracking-widest text-neutral-500">dev keys</div>
+      <div>w wake · s spin cw · a spin ccw · ± speed · enter select</div>
+      <div>c cut · y accept · n reject · t throw · r reset · h hall</div>
     </div>
   );
 }
