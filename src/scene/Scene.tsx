@@ -2,13 +2,21 @@ import { Canvas } from "@react-three/fiber";
 import type { ReactNode } from "react";
 import { WebcamBackground } from "./WebcamBackground";
 import { useWebcam } from "./useWebcam";
+import { useHandTracker } from "../gestures/useHandTracker";
+import { useGestureDetector } from "../gestures/useGestureDetector";
+import { LandmarkDebug } from "../gestures/LandmarkDebug";
 
 type Props = {
   children?: ReactNode;
+  /** When true, renders the landmark overlay and labels on the HUD. */
+  debug?: boolean;
 };
 
-export function Scene({ children }: Props) {
-  const { status, video, error } = useWebcam();
+export function Scene({ children, debug = false }: Props) {
+  const { status: camStatus, video, error } = useWebcam();
+  const { status: trackerStatus, frameRef } = useHandTracker(video);
+
+  useGestureDetector({ frameRef, enabled: trackerStatus === "ready" });
 
   return (
     <div className="absolute inset-0">
@@ -22,7 +30,13 @@ export function Scene({ children }: Props) {
         {video && <WebcamBackground video={video} />}
         {children}
       </Canvas>
-      {status !== "ready" && <CameraStatus status={status} error={error} />}
+      {debug && <LandmarkDebug frameRef={frameRef} />}
+      {camStatus !== "ready" && (
+        <CameraStatus status={camStatus} error={error} />
+      )}
+      {camStatus === "ready" && trackerStatus !== "ready" && (
+        <TrackerStatus status={trackerStatus} />
+      )}
     </div>
   );
 }
@@ -54,6 +68,15 @@ function CameraStatus({
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function TrackerStatus({ status }: { status: "idle" | "loading" | "error" }) {
+  return (
+    <div className="pointer-events-none absolute bottom-20 left-1/2 -translate-x-1/2 rounded bg-black/60 px-3 py-1 font-mono text-[10px] uppercase tracking-widest text-neutral-300">
+      {status === "loading" && "loading hand tracker"}
+      {status === "error" && "hand tracker failed"}
     </div>
   );
 }

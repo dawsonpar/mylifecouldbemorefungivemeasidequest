@@ -22,10 +22,12 @@ export default function App() {
 
   const [adminOpen, setAdminOpen] = useState(false);
 
-  const adminFlag = useMemo(() => {
-    if (typeof window === "undefined") return false;
-    return new URLSearchParams(window.location.search).get("admin") === "1";
+  const params = useMemo(() => {
+    if (typeof window === "undefined") return new URLSearchParams();
+    return new URLSearchParams(window.location.search);
   }, []);
+  const adminFlag = params.get("admin") === "1";
+  const debugFlag = params.get("debug") === "1";
 
   useEffect(() => {
     void init();
@@ -40,7 +42,7 @@ export default function App() {
 
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-black">
-      <Scene>
+      <Scene debug={debugFlag}>
         <CardPack />
         <AcceptFlourish />
         <QuestReveal />
