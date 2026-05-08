@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Scene } from "./scene/Scene";
 import { CardPack } from "./scene/CardPack";
 import { QuestReveal } from "./scene/QuestReveal";
@@ -6,6 +6,9 @@ import { AcceptFlourish } from "./scene/AcceptFlourish";
 import { TrashCan } from "./scene/TrashCan";
 import { CrumpleBall } from "./scene/CrumpleBall";
 import { AcceptOverlay } from "./hud/AcceptOverlay";
+import { IconTray } from "./hud/IconTray";
+import { AdminPanel } from "./hud/AdminPanel";
+import { HallOfFrame } from "./pages/HallOfFrame";
 import { useAppStore } from "./state/store";
 import { useKeyboardShortcuts } from "./dev/useKeyboardShortcuts";
 import { useAutoAdvance } from "./scene/useAutoAdvance";
@@ -17,9 +20,20 @@ export default function App() {
   const spin = useAppStore((s) => s.spin);
   const throwHit = useAppStore((s) => s.throwHit);
 
+  const [adminOpen, setAdminOpen] = useState(false);
+
+  const adminFlag = useMemo(() => {
+    if (typeof window === "undefined") return false;
+    return new URLSearchParams(window.location.search).get("admin") === "1";
+  }, []);
+
   useEffect(() => {
     void init();
   }, [init]);
+
+  useEffect(() => {
+    if (adminFlag) setAdminOpen(true);
+  }, [adminFlag]);
 
   useKeyboardShortcuts();
   useAutoAdvance();
@@ -34,6 +48,9 @@ export default function App() {
         <CrumpleBall />
       </Scene>
       <AcceptOverlay />
+      <HallOfFrame />
+      <IconTray onOpenAdmin={() => setAdminOpen(true)} forceVisible={adminFlag} />
+      <AdminPanel open={adminOpen} onClose={() => setAdminOpen(false)} />
       <div className="pointer-events-none absolute right-3 top-3 rounded bg-black/40 px-2 py-1 font-mono text-[10px] uppercase tracking-widest text-neutral-400">
         {phase}
         {phase === "spin" && (
