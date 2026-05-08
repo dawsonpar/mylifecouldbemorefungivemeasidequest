@@ -1,0 +1,44 @@
+[
+  {
+    "id": "leather-1",
+    "title": "Make something out of leather",
+    "description": "Pick up a small piece of vegetable-tanned leather and make one wearable thing today. A keyring, a card sleeve, a wristband. The point is to leave with an object you didn't have when you woke up.",
+    "requirements": "60 minutes minimum. Hand tools only. Photograph the finished piece and the offcuts."
+  },
+  {
+    "id": "fit-checks-1",
+    "title": "10 fit checks with 10 strangers",
+    "description": "Find ten people on the street whose outfits you actually like. Stop them. Ask one specific question about a single piece. Compliment one detail.",
+    "requirements": "Real strangers, not friends. No fishing for approval. Note one thing you learned from each conversation."
+  },
+  {
+    "id": "yes-day-1",
+    "title": "Say yes to everything for 24 hours",
+    "description": "For one full day, the default answer to every offer, invitation, or request is yes. Track what changes. Track what costs you. Track what you would not have chosen on your own.",
+    "requirements": "Document the three most surprising yeses. No yeses that involve harming yourself or others."
+  },
+  {
+    "id": "soho-london-1",
+    "title": "Buy 1 thing from Soho",
+    "description": "Walk into Soho with no plan. Leave with one item you did not know you wanted. Pay full price. The constraint is the limit of one.",
+    "requirements": "Single shop. Single item. Photograph the storefront and the receipt."
+  },
+  {
+    "id": "plant-1",
+    "title": "Adopt a plant",
+    "description": "Bring home one living plant that depends on you to stay alive. Name it. Place it where you will see it every morning.",
+    "requirements": "Not a succulent. Something that needs actual attention."
+  },
+  {
+    "id": "grass-vb-1",
+    "title": "Host a grass volleyball session",
+    "description": "Pick a park, pick a time, post it publicly. Bring a ball and a net. Show up even if no one else does.",
+    "requirements": "Six players minimum makes it a session. Solo with a wall counts as practice, not as completion."
+  },
+  {
+    "id": "doors-1",
+    "title": "Knock on 10 doors in your building",
+    "description": "Introduce yourself to ten neighbors. Bring something small (a single flower, a piece of fruit, a handwritten card). Ask one question.",
+    "requirements": "Ten distinct units. Take a note on each conversation."
+  }
+]
