@@ -1,5 +1,5 @@
 import type { Quest } from "./types";
-import { loadLocalQuests, loadRejected } from "./storage";
+import { loadLocalQuests } from "./storage";
 
 async function fetchJson<T>(url: string): Promise<T | null> {
   try {
