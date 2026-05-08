@@ -53,30 +53,60 @@ export function handScale(h: Hand): number {
   return distance(h.points[LM.WRIST], h.points[LM.MIDDLE_MCP]) || 1;
 }
 
+type FourFinger = "index" | "middle" | "ring" | "pinky";
+
+const TIP_MCP_PIP: Record<FourFinger, [number, number, number]> = {
+  index: [LM.INDEX_TIP, LM.INDEX_MCP, LM.INDEX_PIP],
+  middle: [LM.MIDDLE_TIP, LM.MIDDLE_MCP, LM.MIDDLE_PIP],
+  ring: [LM.RING_TIP, LM.RING_MCP, LM.RING_PIP],
+  pinky: [LM.PINKY_TIP, LM.PINKY_MCP, LM.PINKY_PIP],
+};
+
 /**
- * True when the named finger is extended. Uses tip-Y vs PIP-Y in the
- * normalized image space. Note: MediaPipe Y is top-to-bottom (so a
- * finger pointing up has lower y at the tip than at the PIP).
+ * Rotation-invariant, per-finger extension check.
+ *
+ * Reference: the finger's own proximal phalange (MCP→PIP). A fully
+ * extended finger has all three phalanges in a line so the tip is
+ * ~3 phalange-lengths from the MCP. A curled finger folds back so
+ * the tip is roughly one phalange length or closer.
+ *
+ * Using the finger's own phalange (instead of palm length) makes
+ * this work for short fingers (pinky, ring) the same as long ones
+ * (middle, index) and at any hand orientation.
  */
-export function isFingerExtended(
-  h: Hand,
-  finger: "index" | "middle" | "ring" | "pinky",
-): boolean {
+export function isFingerExtended(h: Hand, finger: FourFinger): boolean {
+  const [tip, mcp, pip] = TIP_MCP_PIP[finger];
   const p = h.points;
-  const tipPip: Record<typeof finger, [number, number]> = {
-    index: [LM.INDEX_TIP, LM.INDEX_PIP],
-    middle: [LM.MIDDLE_TIP, LM.MIDDLE_PIP],
-    ring: [LM.RING_TIP, LM.RING_PIP],
-    pinky: [LM.PINKY_TIP, LM.PINKY_PIP],
-  };
-  const [tip, pip] = tipPip[finger];
-  return p[tip].y < p[pip].y;
+  const tipToMcp = distance(p[tip], p[mcp]);
+  const mcpToPip = distance(p[mcp], p[pip]);
+  if (mcpToPip < 1e-6) return false;
+  return tipToMcp > mcpToPip * 2.0;
+}
+
+/** Symmetric: tip is folded close to its MCP. */
+export function isFingerCurled(h: Hand, finger: FourFinger): boolean {
+  const [tip, mcp, pip] = TIP_MCP_PIP[finger];
+  const p = h.points;
+  const tipToMcp = distance(p[tip], p[mcp]);
+  const mcpToPip = distance(p[mcp], p[pip]);
+  if (mcpToPip < 1e-6) return true;
+  return tipToMcp < mcpToPip * 1.5;
 }
 
 /** Thumb extension: tip far from index_mcp on the radial side. */
 export function isThumbExtended(h: Hand): boolean {
   const p = h.points;
   return distance(p[LM.THUMB_TIP], p[LM.INDEX_MCP]) > handScale(h) * 0.45;
+}
+
+/** Number of the four non-thumb fingers currently extended (0..4). */
+export function extendedFingerCount(h: Hand): number {
+  let n = 0;
+  if (isFingerExtended(h, "index")) n++;
+  if (isFingerExtended(h, "middle")) n++;
+  if (isFingerExtended(h, "ring")) n++;
+  if (isFingerExtended(h, "pinky")) n++;
+  return n;
 }
 
 /** True for an open palm (all four fingers extended). */
@@ -110,29 +140,66 @@ export function isScissors(h: Hand): boolean {
   );
 }
 
-/** Thumbs up: thumb pointing up, others curled, thumb_tip well above wrist. */
+/**
+ * Thumbs up:
+ *  1. Thumb is vertical, pointing up (tip well above its own MCP).
+ *  2. Thumb tip is the highest point of the hand (above all four
+ *     fingertips), so a sideways thumb can't false-positive.
+ *  3. None of the four fingers are extended.
+ *
+ * Uses !isFingerExtended (rather than strict isFingerCurled) for
+ * the four fingers so a slightly loose fist still passes; the
+ * strict-curled check creates a dead zone where MediaPipe noise
+ * makes the gesture flicker.
+ */
 export function isThumbsUp(h: Hand): boolean {
   const p = h.points;
-  return (
-    isThumbExtended(h) &&
-    p[LM.THUMB_TIP].y < p[LM.WRIST].y - handScale(h) * 0.4 &&
+  const scale = handScale(h);
+  const thumbVertical =
+    p[LM.THUMB_TIP].y < p[LM.THUMB_MCP].y - scale * 0.4;
+  const thumbHighest =
+    p[LM.THUMB_TIP].y < p[LM.INDEX_TIP].y &&
+    p[LM.THUMB_TIP].y < p[LM.MIDDLE_TIP].y &&
+    p[LM.THUMB_TIP].y < p[LM.RING_TIP].y &&
+    p[LM.THUMB_TIP].y < p[LM.PINKY_TIP].y;
+  const fistClosed =
     !isFingerExtended(h, "index") &&
     !isFingerExtended(h, "middle") &&
     !isFingerExtended(h, "ring") &&
-    !isFingerExtended(h, "pinky")
-  );
+    !isFingerExtended(h, "pinky");
+  return thumbVertical && thumbHighest && fistClosed;
 }
 
-/** Thumbs down: thumb pointing down, others curled. */
+/** Thumbs down: symmetric to thumbs up. */
 export function isThumbsDown(h: Hand): boolean {
   const p = h.points;
-  return (
-    isThumbExtended(h) &&
-    p[LM.THUMB_TIP].y > p[LM.WRIST].y + handScale(h) * 0.4 &&
+  const scale = handScale(h);
+  const thumbVertical =
+    p[LM.THUMB_TIP].y > p[LM.THUMB_MCP].y + scale * 0.4;
+  const thumbLowest =
+    p[LM.THUMB_TIP].y > p[LM.INDEX_TIP].y &&
+    p[LM.THUMB_TIP].y > p[LM.MIDDLE_TIP].y &&
+    p[LM.THUMB_TIP].y > p[LM.RING_TIP].y &&
+    p[LM.THUMB_TIP].y > p[LM.PINKY_TIP].y;
+  const fistClosed =
     !isFingerExtended(h, "index") &&
     !isFingerExtended(h, "middle") &&
     !isFingerExtended(h, "ring") &&
-    !isFingerExtended(h, "pinky")
+    !isFingerExtended(h, "pinky");
+  return thumbVertical && thumbLowest && fistClosed;
+}
+
+/**
+ * Shaka / "hang loose": thumb extended, pinky extended,
+ * index/middle/ring not extended (i.e. tucked).
+ */
+export function isShaka(h: Hand): boolean {
+  return (
+    isThumbExtended(h) &&
+    !isFingerExtended(h, "index") &&
+    !isFingerExtended(h, "middle") &&
+    !isFingerExtended(h, "ring") &&
+    isFingerExtended(h, "pinky")
   );
 }
 

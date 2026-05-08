@@ -19,7 +19,14 @@ import {
 } from "../lib/messages";
 import { canTransition } from "./transitions";
 
-type SpinState = { direction: SpinDirection; speed: number };
+type SpinState = {
+  direction: SpinDirection;
+  speed: number;
+  /** Signed angular velocity from the latest hand observation (rad/sec). */
+  handAV: number;
+  /** Thumb-index openness 0..1; drives card friction. */
+  openness: number;
+};
 
 type AppState = {
   phase: Phase;
@@ -37,8 +44,8 @@ type AppState = {
 type AppActions = {
   init(): Promise<void>;
   wake(): void;
-  startSpin(direction: SpinDirection, speed: number): void;
-  updateSpin(direction: SpinDirection, speed: number): void;
+  startSpin(handAV: number, openness: number): void;
+  updateSpin(handAV: number, openness: number): void;
   stopAndSelect(): void;
   cut(): void;
   acceptCurrent(): Promise<void>;
@@ -57,7 +64,7 @@ const INITIAL_STATE: AppState = {
   phase: "idle",
   pool: [],
   poolLoaded: false,
-  spin: { direction: "cw", speed: 0 },
+  spin: { direction: "cw", speed: 0, handAV: 0, openness: 0.5 },
   currentQuest: null,
   accepted: [],
   rejected: [],
@@ -99,27 +106,57 @@ export const useAppStore = create<AppStore>((set, get) => {
       setPhase("wake");
     },
 
-    startSpin(direction, speed) {
+    startSpin(handAV, openness) {
       if (!setPhase("spin")) return;
-      set({ spin: { direction, speed } });
+      set({
+        spin: {
+          direction: handAV < 0 ? "ccw" : "cw",
+          speed: openness,
+          handAV,
+          openness,
+        },
+      });
     },
 
-    updateSpin(direction, speed) {
-      if (get().phase !== "spin") return;
-      set({ spin: { direction, speed } });
+    updateSpin(handAV, openness) {
+      if (get().phase !== "spin" && get().phase !== "wake") return;
+      set({
+        spin: {
+          direction: handAV < 0 ? "ccw" : "cw",
+          speed: openness,
+          handAV,
+          openness,
+        },
+      });
     },
 
     stopAndSelect() {
-      if (!setPhase("select")) return;
       const state = get();
-      const excluded = rejectedIdSet(state.rejected);
+      // Pool not loaded yet or genuinely empty: don't advance; the
+      // user would otherwise land in openPack with no quest to show.
+      if (state.pool.length === 0) {
+        console.warn("[state] stopAndSelect: pool is empty, ignoring");
+        return;
+      }
       let chosen: Quest | null = null;
       if (state.forcedNextQuestId) {
         chosen = state.pool.find((q) => q.id === state.forcedNextQuestId) ?? null;
       }
       if (!chosen) {
-        chosen = pickRandom(state.pool, excluded);
+        chosen = pickRandom(state.pool, rejectedIdSet(state.rejected));
       }
+      // Pool exhausted by rejections: auto-clear rejected list so the
+      // user can keep playing instead of getting stuck at openPack.
+      if (!chosen && state.rejected.length > 0) {
+        saveRejected([]);
+        set({ rejected: [] });
+        chosen = pickRandom(state.pool, new Set());
+      }
+      if (!chosen) {
+        console.warn("[state] stopAndSelect: no eligible quest, ignoring");
+        return;
+      }
+      if (!setPhase("select")) return;
       set({ currentQuest: chosen, forcedNextQuestId: null });
     },
 
@@ -168,7 +205,7 @@ export const useAppStore = create<AppStore>((set, get) => {
       setPhase("idle");
       set({
         currentQuest: null,
-        spin: { direction: "cw", speed: 0 },
+        spin: { direction: "cw", speed: 0, handAV: 0, openness: 0.5 },
         acceptanceMessage: null,
         throwHit: null,
       });

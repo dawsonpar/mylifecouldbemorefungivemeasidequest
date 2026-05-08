@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useAppStore } from "../state/store";
 import type { GestureEvent } from "../lib/types";
 import type { HandsFrame } from "./landmarks";
-import { createDetectorState, detect } from "./detector";
+import { createDetectorState, detect, type DetectorState } from "./detector";
 
 type Props = {
   frameRef: React.MutableRefObject<HandsFrame | null>;
@@ -33,6 +33,8 @@ export function useGestureDetector({ frameRef, enabled }: Props) {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
   }, [frameRef, enabled]);
+
+  return stateRef as React.MutableRefObject<DetectorState>;
 }
 
 function dispatch(store: ReturnType<typeof useAppStore.getState>, e: GestureEvent) {
@@ -42,9 +44,15 @@ function dispatch(store: ReturnType<typeof useAppStore.getState>, e: GestureEven
       return;
     case "spin":
       if (store.phase === "wake") {
-        store.startSpin(e.direction, e.speed);
+        // Only enter spin phase if the hand is actually moving;
+        // otherwise stay in wake and just update openness.
+        if (Math.abs(e.handAV) > 0.4) {
+          store.startSpin(e.handAV, e.openness);
+        } else {
+          store.updateSpin(e.handAV, e.openness);
+        }
       } else {
-        store.updateSpin(e.direction, e.speed);
+        store.updateSpin(e.handAV, e.openness);
       }
       return;
     case "stopSelect":
@@ -61,6 +69,9 @@ function dispatch(store: ReturnType<typeof useAppStore.getState>, e: GestureEven
       return;
     case "throw":
       store.fireThrow();
+      return;
+    case "reset":
+      store.finishReset();
       return;
   }
 }

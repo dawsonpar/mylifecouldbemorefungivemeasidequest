@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useAppStore } from "../state/store";
-import { SPIN } from "../state/config";
+
+const KICK_AV = 4.0;
 
 /**
  * Dev-only phase shortcuts. Fires GestureEvent-equivalent actions
@@ -21,17 +22,20 @@ export function useKeyboardShortcuts() {
           s.wake();
           break;
         case "s":
-          s.startSpin("cw", SPIN.defaultSpeed);
+          // Kick spin clockwise. Successive presses add more impulse.
+          s.startSpin(KICK_AV, s.spin.openness || 0.7);
           break;
         case "a":
-          s.startSpin("ccw", SPIN.defaultSpeed);
+          s.startSpin(-KICK_AV, s.spin.openness || 0.7);
           break;
         case "+":
         case "=":
-          s.updateSpin(s.spin.direction, Math.min(1, s.spin.speed + 0.15));
+          // Open the hand (less friction, longer spin).
+          s.updateSpin(s.spin.handAV, Math.min(1, s.spin.openness + 0.15));
           break;
         case "-":
-          s.updateSpin(s.spin.direction, Math.max(0, s.spin.speed - 0.15));
+          // Close the hand (more friction, faster decay).
+          s.updateSpin(s.spin.handAV, Math.max(0, s.spin.openness - 0.15));
           break;
         case "enter":
           s.stopAndSelect();

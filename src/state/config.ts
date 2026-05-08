@@ -26,8 +26,18 @@ export const LERP = {
 
 /** Spin tuning. */
 export const SPIN = {
-  /** Max angular velocity at speed=1 (radians/sec). */
-  maxAngularVelocity: 4.0,
-  /** Default speed when spin is started without a value. */
+  /** Default speed when spin is started without a value (used by debug keys). */
   defaultSpeed: 0.5,
+  /** Multiplier applied to hand angular velocity when adding impulse. */
+  handCoupling: 1.4,
+  /** Friction floor (rad/sec/sec) at openness=1 (hand wide open). */
+  minFriction: 0.4,
+  /** Friction ceiling at openness=0 (thumb+index touching). */
+  maxFriction: 7.0,
+  /** Friction during select/idle (forces decay). */
+  resetFriction: 6.0,
+  /** Friction while aligning to selected card target. */
+  alignFriction: 8.0,
+  /** Max card angular velocity, clamped to keep things readable. */
+  maxAngularVelocity: 9.0,
 } as const;

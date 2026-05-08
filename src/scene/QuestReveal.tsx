@@ -19,14 +19,13 @@ export function QuestReveal() {
   const currentQuest = useAppStore((s) => s.currentQuest);
   const phaseTime = usePhaseTime(phase, "openPack");
 
-  // Show the quest face from openPack onward (also accept/reject use it).
-  const showQuestFace =
-    phase === "openPack" ||
-    phase === "accept" ||
-    phase === "reject" ||
-    phase === "throw";
+  // Show the quest face during openPack and accept only. During
+  // reject/throw the card has collapsed into the crumple ball;
+  // keeping the quest face up would block the ball's path to the
+  // trash can in the background.
+  const showQuestFace = phase === "openPack" || phase === "accept";
 
-  if (!currentQuest || (phase !== "openPack" && !showQuestFace)) return null;
+  if (!currentQuest || !showQuestFace) return null;
 
   return (
     <group position={PACK_POSITION}>

@@ -5,6 +5,7 @@ import { useWebcam } from "./useWebcam";
 import { useHandTracker } from "../gestures/useHandTracker";
 import { useGestureDetector } from "../gestures/useGestureDetector";
 import { LandmarkDebug } from "../gestures/LandmarkDebug";
+import { GestureDebugHud } from "../gestures/GestureDebugHud";
 
 type Props = {
   children?: ReactNode;
@@ -16,7 +17,10 @@ export function Scene({ children, debug = false }: Props) {
   const { status: camStatus, video, error } = useWebcam();
   const { status: trackerStatus, frameRef } = useHandTracker(video);
 
-  useGestureDetector({ frameRef, enabled: trackerStatus === "ready" });
+  const detectorRef = useGestureDetector({
+    frameRef,
+    enabled: trackerStatus === "ready",
+  });
 
   return (
     <div className="absolute inset-0">
@@ -31,6 +35,7 @@ export function Scene({ children, debug = false }: Props) {
         {children}
       </Canvas>
       {debug && <LandmarkDebug frameRef={frameRef} />}
+      {debug && <GestureDebugHud detectorRef={detectorRef} />}
       {camStatus !== "ready" && (
         <CameraStatus status={camStatus} error={error} />
       )}

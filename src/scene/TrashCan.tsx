@@ -4,7 +4,12 @@ import * as THREE from "three";
 import { useAppStore } from "../state/store";
 import { usePhaseTime } from "./usePhaseTime";
 
-export const TRASH_POSITION: [number, number, number] = [1.7, -1.2, 1.4];
+/**
+ * Trash can sits behind the card pack (negative Z) and slightly
+ * below center, so the throw motion arcs forward INTO the screen
+ * from the user's hand position toward the can.
+ */
+export const TRASH_POSITION: [number, number, number] = [0.3, -0.4, -2.2];
 
 /**
  * One-shot trash can. Fades in during reject, holds through throw,
@@ -34,12 +39,12 @@ export function TrashCan() {
 
   return (
     <group ref={groupRef} position={TRASH_POSITION}>
-      {/* Outer wall */}
+      {/* Outer wall, scaled larger since it's deeper in the scene */}
       <mesh>
-        <cylinderGeometry args={[0.4, 0.32, 0.7, 32, 1, true]} />
+        <cylinderGeometry args={[0.55, 0.42, 1.0, 36, 1, true]} />
         <meshStandardMaterial
           ref={wallMatRef}
-          color="#222"
+          color="#1a1a1a"
           roughness={0.7}
           metalness={0.4}
           side={THREE.DoubleSide}
@@ -47,10 +52,22 @@ export function TrashCan() {
           opacity={0}
         />
       </mesh>
-      {/* Inner shadow disk */}
-      <mesh position={[0, 0.34, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-        <ringGeometry args={[0.28, 0.4, 32]} />
-        <meshBasicMaterial color="#0a0a0a" transparent opacity={0.7} />
+      {/* Rim highlight */}
+      <mesh position={[0, 0.5, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <ringGeometry args={[0.5, 0.58, 36]} />
+        <meshStandardMaterial
+          color="#3a3a3a"
+          roughness={0.5}
+          metalness={0.6}
+          side={THREE.DoubleSide}
+          transparent
+          opacity={0.9}
+        />
+      </mesh>
+      {/* Inner shadow disk (the opening) */}
+      <mesh position={[0, 0.49, 0]} rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[0.5, 36]} />
+        <meshBasicMaterial color="#050505" transparent opacity={0.85} />
       </mesh>
     </group>
   );

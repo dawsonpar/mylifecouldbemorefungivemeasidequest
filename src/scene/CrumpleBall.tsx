@@ -38,27 +38,46 @@ export function CrumpleBall() {
     }
 
     if (phase === "throw") {
-      const t = Math.min(1, throwTime.current / 1.0);
+      // Ball arcs forward INTO the screen (z decreases) and lifts in
+      // a short parabola. Hit = lands at TRASH_POSITION (above the
+      // opening so it falls in). Miss = clips the rim and bounces
+      // off to the side.
+      const t = Math.min(1, throwTime.current / 0.9);
       const eased = easeInQuad(t);
       const start = new THREE.Vector3(...PACK_POSITION);
       const target = new THREE.Vector3(
         ...(throwHit
-          ? TRASH_POSITION
-          : ([TRASH_POSITION[0] + 0.45, TRASH_POSITION[1] + 0.3, TRASH_POSITION[2]] as [
+          ? ([TRASH_POSITION[0], TRASH_POSITION[1] + 0.55, TRASH_POSITION[2]] as [
               number,
               number,
               number,
-            ])),
+            ])
+          : ([
+              TRASH_POSITION[0] + 0.6,
+              TRASH_POSITION[1] + 0.6,
+              TRASH_POSITION[2] + 0.3,
+            ] as [number, number, number])),
       );
-      const arcHeight = 1.3;
+      const arcHeight = 0.7;
       const x = start.x + (target.x - start.x) * eased;
-      const y = start.y + (target.y - start.y) * eased + Math.sin(eased * Math.PI) * arcHeight;
+      const y =
+        start.y + (target.y - start.y) * eased + Math.sin(eased * Math.PI) * arcHeight;
       const z = start.z + (target.z - start.z) * eased;
       m.position.set(x, y, z);
       m.rotation.x += 0.25;
       m.rotation.y += 0.18;
-      m.scale.setScalar(0.18 * Math.max(0, 1 - Math.max(0, throwTime.current - 1.05) / 0.3));
-      matRef.current.opacity = Math.max(0, 1 - Math.max(0, throwTime.current - 1.05) / 0.3);
+
+      // Ball shrinks visually as it gets deeper (perspective is
+      // already shrinking it, but we exaggerate for clarity), then
+      // disappears once it reaches the opening (hit) or after
+      // bouncing off (miss).
+      const baseScale = 0.18 * (1 - 0.4 * eased);
+      const fade = Math.max(
+        0,
+        1 - Math.max(0, throwTime.current - 0.95) / 0.35,
+      );
+      m.scale.setScalar(baseScale * fade);
+      matRef.current.opacity = fade;
       return;
     }
 

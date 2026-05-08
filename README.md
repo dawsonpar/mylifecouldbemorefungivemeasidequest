@@ -62,7 +62,8 @@ Currently only valid in the phase listed.
 | **Peace sign + horizontal slash** | select | Cuts the pack open |
 | **Thumbs up** | openPack | Accepts the quest |
 | **Thumbs down** | openPack | Rejects (crumples the card) |
-| **Closed fist, then snap open + upward** | reject | Throws the ball at the trash can |
+| **Closed fist, then snap open toward camera** | reject | Throws the ball at the trash can |
+| **Two-hand shaka (thumb + pinky out, both hands)** | any non-idle | Resets to idle (panic button) |
 
 Tuning lives in `src/gestures/detector.ts` under `TUNING`. If a gesture is
 firing too easily or too rarely, that file is the one-stop edit.

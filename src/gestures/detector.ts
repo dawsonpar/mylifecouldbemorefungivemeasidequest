@@ -3,13 +3,15 @@ import {
   LM,
   isOpenHand,
   isScissors,
+  isShaka,
   isThumbsUp,
   isThumbsDown,
-  isClosedFist,
   pinchDistance,
   wristAngle,
+  handScale,
+  extendedFingerCount,
 } from "./landmarks";
-import type { GestureEvent, Phase, SpinDirection } from "../lib/types";
+import type { GestureEvent, Phase } from "../lib/types";
 
 /**
  * Tunables for gesture detection. Surface these in one place so a
@@ -17,24 +19,55 @@ import type { GestureEvent, Phase, SpinDirection } from "../lib/types";
  */
 export const TUNING = {
   /** How long a pose must hold before firing a static-pose event (ms). */
-  posedHoldMs: 180,
+  posedHoldMs: 90,
   /** Minimum gap between same-event fires (ms). */
   refractoryMs: 700,
-  /** Pinch is "touching" below this normalized distance. */
-  pinchThreshold: 0.08,
+  /** Pinch is "touching" below this normalized distance (entering). */
+  pinchThreshold: 0.18,
+  /** Pinch is "released" above this distance (hysteresis to avoid flicker). */
+  pinchReleaseThreshold: 0.28,
   /** History window for velocity / angular velocity calculations (ms). */
   historyMs: 220,
-  /** Minimum angular velocity to declare a spin (rad/s). */
-  minAngularVelocity: 0.6,
+  /** Pinch-distance value at which spin "openness" reads as 1 (wide open). */
+  opennessFullDistance: 0.5,
   /** Minimum horizontal speed (image-units/sec) for a cut to register. */
-  cutHorizontalSpeed: 1.2,
-  /** Minimum upward velocity (image-units/sec) for a throw release. */
-  throwUpwardSpeed: 1.2,
-  /** Frames over which fist must precede open-hand for a throw. */
-  throwFistWindowMs: 300,
+  cutHorizontalSpeed: 0.45,
+  /** Max ratio of vertical to horizontal motion for a cut. */
+  cutVerticalRatio: 0.9,
+  /** Time window for fist→open transition to count as a throw (ms). */
+  throwFistWindowMs: 800,
+  /** Max extended-finger count to register as "fisted" for throw. */
+  throwFistMaxExtended: 1,
+  /** Min extended-finger count to register as "released" for throw. */
+  throwOpenMinExtended: 4,
+  /** Min sustained-fist time before fist counts as "confirmed" (ms). */
+  throwFistConfirmMs: 120,
+  /** Min sustained-open time after fist before throw fires (ms). */
+  throwOpenConfirmMs: 60,
+  /** Optional bonus: hand size growth ratio surfaces in debug. */
+  throwSizeGrowth: 1.06,
+  /** Hold time for two-hand shaka reset (ms). Long, since reset is destructive. */
+  resetHoldMs: 450,
 } as const;
 
-type WristSample = { x: number; y: number; angle: number; t: number };
+type WristSample = {
+  x: number;
+  y: number;
+  angle: number;
+  size: number;
+  t: number;
+};
+
+type ThrowState = {
+  /** First frame time that the hand was seen as fisted (ext <= max). */
+  fistFirstSeenAt: number | null;
+  /** Time the fist was confirmed (held long enough). */
+  fistConfirmedAt: number | null;
+  /** Largest hand size observed during the confirmed fist window. */
+  fistSize: number | null;
+  /** First frame time the hand was seen as open after fist confirmation. */
+  openFirstSeenAt: number | null;
+};
 
 export type DetectorState = {
   /** Per-event last-fire timestamps for refractory enforcement. */
@@ -43,16 +76,45 @@ export type DetectorState = {
   posedSince: Map<string, number>;
   /** Sliding window of wrist samples. */
   wristHistory: WristSample[];
-  /** Time when a closed fist was first seen (for throw detection). */
-  fistSince: number | null;
+  /** True if the pinch hysteresis state is currently "pinched". */
+  pinched: boolean;
+  /** Throw-gesture sub-state machine. */
+  throwState: ThrowState;
+  /** Live snapshot of the latest detection signals (for debug UI). */
+  debug: {
+    extendedFingers: number;
+    handSize: number;
+    fistConfirmed: boolean;
+    fistAgeMs: number | null;
+    sizeRatio: number;
+    pinchDistance: number;
+  };
 };
+
+function emptyThrowState(): ThrowState {
+  return {
+    fistFirstSeenAt: null,
+    fistConfirmedAt: null,
+    fistSize: null,
+    openFirstSeenAt: null,
+  };
+}
 
 export function createDetectorState(): DetectorState {
   return {
     lastFire: new Map(),
     posedSince: new Map(),
     wristHistory: [],
-    fistSince: null,
+    pinched: false,
+    throwState: emptyThrowState(),
+    debug: {
+      extendedFingers: 0,
+      handSize: 0,
+      fistConfirmed: false,
+      fistAgeMs: null,
+      sizeRatio: 1,
+      pinchDistance: 1,
+    },
   };
 }
 
@@ -80,6 +142,7 @@ export function detect(
       x: w.x,
       y: w.y,
       angle: wristAngle(active),
+      size: handScale(active),
       t: now,
     });
   }
@@ -96,43 +159,72 @@ export function detect(
     }
   }
 
-  // === Spin: continuous, only valid in wake/spin ===
-  if ((phase === "wake" || phase === "spin") && active) {
-    const angVel = angularVelocity(state.wristHistory);
-    const speed = clamp01(1 - pinchDistance(active) / 0.5);
-    if (Math.abs(angVel) >= TUNING.minAngularVelocity) {
-      const direction: SpinDirection = angVel < 0 ? "ccw" : "cw";
-      events.push({ kind: "spin", direction, speed });
-    } else if (phase === "spin") {
-      // Keep speed updated even when angular velocity dips.
-      events.push({
-        kind: "spin",
-        direction: angVel < 0 ? "ccw" : "cw",
-        speed,
-      });
+  // === Reset: two-hand shaka, valid in any phase except idle ===
+  // Held longer than other gestures because it discards in-flight
+  // state (current quest, spin velocity).
+  if (phase !== "idle") {
+    const resetPosed =
+      frame.hands.length === 2 && frame.hands.every((h) => isShaka(h));
+    const since = state.posedSince.get("reset");
+    if (resetPosed) {
+      if (since === undefined) {
+        state.posedSince.set("reset", now);
+      } else if (now - since >= TUNING.resetHoldMs && canFire(state, "reset", now)) {
+        events.push({ kind: "reset" });
+      }
+    } else {
+      state.posedSince.delete("reset");
     }
+  } else {
+    state.posedSince.delete("reset");
+  }
+
+  // === Spin: continuous, only valid in wake/spin ===
+  // Always emit so the cluster can integrate hand impulses every frame
+  // (and update friction via openness even when the hand is still).
+  if ((phase === "wake" || phase === "spin") && active) {
+    const handAV = angularVelocity(state.wristHistory);
+    const openness = clamp01(
+      pinchDistance(active) / TUNING.opennessFullDistance,
+    );
+    events.push({ kind: "spin", handAV, openness });
   }
 
   // === Select: pinch ===
-  if (phase === "spin" && active) {
-    const pinching = pinchDistance(active) < TUNING.pinchThreshold;
-    if (poseHeld(state, "stopSelect", pinching, now)) {
+  // Hysteresis: enter "pinched" below pinchThreshold, release above
+  // pinchReleaseThreshold. Fires stopSelect on the rising edge of
+  // the pinch, no hold required (a pinch is a deliberate motion).
+  if ((phase === "spin" || phase === "wake") && active) {
+    const d = pinchDistance(active);
+    if (!state.pinched && d < TUNING.pinchThreshold) {
+      state.pinched = true;
       if (canFire(state, "stopSelect", now)) {
         events.push({ kind: "stopSelect" });
       }
+    } else if (state.pinched && d > TUNING.pinchReleaseThreshold) {
+      state.pinched = false;
     }
+  } else {
+    state.pinched = false;
   }
 
-  // === Cut: scissors + horizontal motion ===
+  // === Cut: scissors + horizontal swipe motion ===
+  // Use index-tip velocity (more responsive than wrist for a slash)
+  // and accept any sweep where horizontal motion dominates.
   if (phase === "select" && active) {
     const scissorsPose = isScissors(active);
-    const { vx, vy } = wristVelocity(state.wristHistory);
-    const horizontalSweep =
-      scissorsPose &&
-      Math.abs(vx) >= TUNING.cutHorizontalSpeed &&
-      Math.abs(vy) < TUNING.cutHorizontalSpeed * 0.8;
-    if (horizontalSweep && canFire(state, "cut", now)) {
-      events.push({ kind: "cut" });
+    if (scissorsPose) {
+      const { vx, vy } = wristVelocity(state.wristHistory);
+      const absVx = Math.abs(vx);
+      const absVy = Math.abs(vy);
+      const horizontalDominant = absVx > absVy * TUNING.cutVerticalRatio;
+      if (
+        absVx >= TUNING.cutHorizontalSpeed &&
+        horizontalDominant &&
+        canFire(state, "cut", now)
+      ) {
+        events.push({ kind: "cut" });
+      }
     }
   }
 
@@ -146,32 +238,89 @@ export function detect(
     }
   }
 
-  // === Throw: fist -> snap open with upward velocity ===
+  // === Throw: confirmed fist -> sustained open hand ===
+  // Two-stage gate to avoid single-frame MediaPipe glitches firing
+  // a throw while the fist is still closed:
+  //   1. Hand must hold a fist (ext <= max) for fistConfirmMs.
+  //   2. Then hand must hold an open pose (ext >= min) for
+  //      openConfirmMs before throw fires.
+  // Either side breaking resets the relevant marker; size growth
+  // is reported for the debug HUD but is not a hard gate.
   if (phase === "reject" && active) {
-    if (isClosedFist(active)) {
-      if (state.fistSince === null) state.fistSince = now;
-    } else {
-      const fistAge = state.fistSince ? now - state.fistSince : 0;
-      const isOpen = isOpenHand(active);
-      const { vy } = wristVelocity(state.wristHistory);
-      const upward = -vy; // image y grows downward
+    const ext = extendedFingerCount(active);
+    const currentSize = handScale(active);
+    const ts = state.throwState;
+
+    if (ext <= TUNING.throwFistMaxExtended) {
+      // Fisted right now.
+      if (ts.fistFirstSeenAt === null) ts.fistFirstSeenAt = now;
+      ts.fistSize = Math.max(ts.fistSize ?? currentSize, currentSize);
       if (
-        isOpen &&
-        fistAge > 0 &&
-        fistAge < TUNING.throwFistWindowMs &&
-        upward >= TUNING.throwUpwardSpeed &&
-        canFire(state, "throw", now)
+        ts.fistConfirmedAt === null &&
+        now - ts.fistFirstSeenAt >= TUNING.throwFistConfirmMs
       ) {
-        events.push({ kind: "throw", velocity: upward });
-        state.fistSince = null;
+        ts.fistConfirmedAt = now;
       }
-      // Stale fist trace
-      if (fistAge > TUNING.throwFistWindowMs * 2) {
-        state.fistSince = null;
+      // Fingers tucked: any prior open-pose timer resets.
+      ts.openFirstSeenAt = null;
+    } else if (ts.fistConfirmedAt !== null) {
+      // Fist was confirmed; now waiting for sustained open hand.
+      if (ext >= TUNING.throwOpenMinExtended) {
+        if (ts.openFirstSeenAt === null) ts.openFirstSeenAt = now;
+        const openHeld = now - ts.openFirstSeenAt;
+        const fistAge = now - ts.fistConfirmedAt;
+        if (
+          openHeld >= TUNING.throwOpenConfirmMs &&
+          fistAge < TUNING.throwFistWindowMs &&
+          canFire(state, "throw", now)
+        ) {
+          const startSize = ts.fistSize ?? currentSize;
+          const sizeRatio = currentSize / Math.max(startSize, 0.0001);
+          events.push({ kind: "throw", velocity: Math.max(sizeRatio, 1) });
+          state.throwState = emptyThrowState();
+        }
+      } else {
+        // Hand left the fist but isn't open yet either; restart the
+        // open-pose timer if/when it opens later.
+        ts.openFirstSeenAt = null;
       }
+      // Window expired without a confirmed open: fall back to
+      // requiring a fresh fist.
+      if (now - ts.fistConfirmedAt > TUNING.throwFistWindowMs) {
+        state.throwState = emptyThrowState();
+      }
+    } else {
+      // Hand isn't fisted and never confirmed a fist this session.
+      ts.fistFirstSeenAt = null;
+      ts.openFirstSeenAt = null;
     }
+
+    const fistAgeForDebug = ts.fistConfirmedAt
+      ? now - ts.fistConfirmedAt
+      : ts.fistFirstSeenAt
+        ? now - ts.fistFirstSeenAt
+        : null;
+    const startSizeForDebug = ts.fistSize ?? currentSize;
+    state.debug = {
+      extendedFingers: ext,
+      handSize: currentSize,
+      fistConfirmed: ts.fistConfirmedAt !== null,
+      fistAgeMs: fistAgeForDebug,
+      sizeRatio: currentSize / Math.max(startSizeForDebug, 0.0001),
+      pinchDistance: pinchDistance(active),
+    };
   } else {
-    state.fistSince = null;
+    state.throwState = emptyThrowState();
+    if (active) {
+      state.debug = {
+        extendedFingers: extendedFingerCount(active),
+        handSize: handScale(active),
+        fistConfirmed: false,
+        fistAgeMs: null,
+        sizeRatio: 1,
+        pinchDistance: pinchDistance(active),
+      };
+    }
   }
 
   // Reset any non-active pose timers when phase doesn't apply.
