@@ -30,7 +30,7 @@ export function HallOfFrame() {
           <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-neutral-500">
             collection
           </div>
-          <h1 className="mt-1 font-serif text-2xl tracking-tight text-neutral-100">
+          <h1 className="mt-1 font-sans text-2xl font-semibold tracking-tight text-neutral-100">
             Hall of Frame
           </h1>
         </div>
@@ -69,7 +69,9 @@ function EmptyState() {
   return (
     <div className="mx-auto max-w-md py-24 text-center">
       <div className="mx-auto mb-6 h-32 w-24 rounded-sm border-2 border-dashed border-white/15" />
-      <h2 className="font-serif text-xl text-neutral-300">no frames yet</h2>
+      <h2 className="font-sans text-xl font-semibold text-neutral-300">
+        no frames yet
+      </h2>
       <p className="mt-2 font-mono text-xs uppercase tracking-widest text-neutral-500">
         accept a quest to fill the gallery
       </p>
@@ -108,7 +110,7 @@ function FramedQuest({
             completed
           </div>
         )}
-        <div className="font-serif text-base leading-tight text-neutral-100">
+        <div className="font-sans text-base font-semibold leading-tight text-neutral-100">
           {quest?.title ?? "(quest removed from pool)"}
         </div>
         {quest?.description && (

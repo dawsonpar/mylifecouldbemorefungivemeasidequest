@@ -6,7 +6,13 @@
   --color-accept: #22c55e;
   --color-reject: #ef4444;
   --color-glow-warm: #fbbf24;
-  --font-display: "Iowan Old Style", "Palatino", "Hoefler Text", serif;
+  /*
+   * DM Sans for branded UI; loaded via <link> in index.html.
+   * Mono stays system-default so the debug HUD reads as utility
+   * text, not branded UI.
+   */
+  --font-sans: "DM Sans", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-display: var(--font-sans);
   --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
 }
 
@@ -21,7 +27,7 @@ body,
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  font-family: var(--font-display);
+  font-family: var(--font-sans);
 }
 
 /* Hide scrollbars on the canvas/HUD layer */

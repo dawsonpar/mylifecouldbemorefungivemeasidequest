@@ -124,7 +124,7 @@ function InnerCard({
             width: `${innerSize.width * 200}px`,
             height: `${innerSize.height * 200}px`,
           }}
-          className="flex flex-col gap-2 rounded-md bg-[#fafaf5] p-4 font-serif text-[#111]"
+          className="flex flex-col gap-2 rounded-md bg-[#fafaf5] p-4 font-sans text-[#111]"
         >
           <div className="text-[18px] font-semibold leading-tight tracking-tight">
             {quest.title}
@@ -134,7 +134,7 @@ function InnerCard({
           </div>
           {quest.requirements && (
             <div className="mt-1 border-t border-[#ddd] pt-1 text-[10px] leading-snug text-[#555]">
-              <span className="font-bold uppercase tracking-widest">required: </span>
+              <span className="font-semibold uppercase tracking-widest">required: </span>
               {quest.requirements}
             </div>
           )}

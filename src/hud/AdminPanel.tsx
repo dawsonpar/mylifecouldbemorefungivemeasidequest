@@ -83,7 +83,9 @@ export function AdminPanel({ open, onClose }: Props) {
             <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-neutral-500">
               admin
             </div>
-            <h2 className="mt-1 font-serif text-xl text-neutral-100">manage quests</h2>
+            <h2 className="mt-1 font-sans text-xl font-semibold text-neutral-100">
+              manage quests
+            </h2>
           </div>
           <button
             type="button"
