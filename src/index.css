@@ -1,0 +1,31 @@
+@import "tailwindcss";
+
+@theme {
+  --color-bg: #000000;
+  --color-fg: #f5f5f5;
+  --color-accept: #22c55e;
+  --color-reject: #ef4444;
+  --color-glow-warm: #fbbf24;
+  --font-display: "Iowan Old Style", "Palatino", "Hoefler Text", serif;
+  --font-mono: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  background: #000;
+  color: #f5f5f5;
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-family: var(--font-display);
+}
+
+/* Hide scrollbars on the canvas/HUD layer */
+::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
