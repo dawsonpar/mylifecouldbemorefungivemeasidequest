@@ -6,6 +6,7 @@ import type {
   RejectedQuest,
   SpinDirection,
 } from "../lib/types";
+import type { SashikoPattern } from "../scene/sashiko-patterns";
 import {
   loadAccepted,
   loadRejected,
@@ -39,6 +40,19 @@ type AppState = {
   acceptanceMessage: string | null;
   throwHit: boolean | null;
   forcedNextQuestId: string | null;
+  /**
+   * Index into PACK_DESIGNS controlling which pack visual is shown.
+   * Advances after each completed pack-open (accept or reject) so
+   * consecutive opens cycle through the registered designs in order.
+   */
+  packIndex: number;
+  /**
+   * Dev-only sashiko pattern override. When non-null, every quest
+   * renders with this pattern regardless of its own `pattern` field.
+   * Set via the Cmd+Shift+P keyboard cycle in dev builds; remains
+   * null in production.
+   */
+  devPatternOverride: SashikoPattern | null;
 };
 
 type AppActions = {
@@ -56,6 +70,7 @@ type AppActions = {
   markCompleted(questId: string, completed: boolean): void;
   forceNextQuest(questId: string | null): void;
   addLocalQuest(quest: Quest): void;
+  setDevPatternOverride(pattern: SashikoPattern | null): void;
 };
 
 export type AppStore = AppState & AppActions;
@@ -71,6 +86,8 @@ const INITIAL_STATE: AppState = {
   acceptanceMessage: null,
   throwHit: null,
   forcedNextQuestId: null,
+  packIndex: 0,
+  devPatternOverride: null,
 };
 
 export const useAppStore = create<AppStore>((set, get) => {
@@ -203,12 +220,13 @@ export const useAppStore = create<AppStore>((set, get) => {
 
     finishReset() {
       setPhase("idle");
-      set({
+      set((state) => ({
         currentQuest: null,
         spin: { direction: "cw", speed: 0, handAV: 0, openness: 0.5 },
         acceptanceMessage: null,
         throwHit: null,
-      });
+        packIndex: state.packIndex + 1,
+      }));
     },
 
     toggleCollection() {
@@ -239,6 +257,10 @@ export const useAppStore = create<AppStore>((set, get) => {
       const state = get();
       if (state.pool.find((q) => q.id === quest.id)) return;
       set({ pool: [...state.pool, quest] });
+    },
+
+    setDevPatternOverride(pattern) {
+      set({ devPatternOverride: pattern });
     },
   };
 });

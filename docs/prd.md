@@ -206,19 +206,30 @@ type GestureDetector = {
 The detector is the only place that knows about MediaPipe landmarks. The
 rest of the app sees `GestureEvent` only.
 
-### Gesture vocabulary (locked)
+### Gesture vocabulary (TBD — slots to fill)
 
-| Event | Pose | Trigger |
+The gesture-to-action mapping is **deliberately not decided in this PRD**. It will be specified in a follow-up conversation, then this section will be replaced with a locked table and the detector will be implemented in milestone 8.
+
+Until then, the implementing session MUST NOT invent gestures. The full set of slots that the next conversation must fill is below. Each slot needs: (a) the pose, (b) the trigger condition (held duration, threshold, motion), (c) the state-machine guard (which phase it is valid in), and (d) any debounce or refractory rules.
+
+| Event slot | What it must do | State-machine guard |
 |---|---|---|
-| `wake` | **Both hands** present, all 10 fingers extended, palms toward camera. Two closed fists must NOT trigger. | Pose held briefly (debounce ~150ms). |
-| `spin` | One hand. **Wrist rotation** is the primary detection method: compute palm-normal vector from wrist + index_mcp + pinky_mcp landmarks (3D), track angular velocity around the forearm axis. **2D fallback (automatic):** if the z-coordinate signal is too noisy during a startup warm-up window, fall back to the 2D angle from wrist→middle_mcp on the screen plane. `direction` is the sign of dθ/dt. `speed` is the normalized distance between thumb-tip (4) and index-tip (8), divided by hand size (wrist→middle_mcp distance). | Continuous events while in phase 3. |
-| `stopSelect` | Pinch: thumb-tip touches index-tip on the active spin hand. The natural endpoint of slowing the spin. | Distance between landmarks 4 and 8 < pinch_threshold for 2 consecutive frames. |
-| `cut` | Index (8) + middle (12) extended, ring (16) and pinky (20) curled, thumb tucked, **plus** quick horizontal motion of the hand. Static scissors pose must NOT trigger. | Pose held + `\|dx/dt\|` > horizontal_velocity_threshold AND `\|dy/dt\|` < vertical_velocity_max. |
-| `accept` | Thumbs up: thumb extended upward, all other fingers curled, thumb-tip Y < wrist Y. Only valid in phase 6. | Pose held briefly. |
-| `reject` | Thumbs down: thumb extended downward, all other fingers curled, thumb-tip Y > wrist Y. Only valid in phase 6. Fires the crumple animation. | Pose held briefly. |
-| `throw` | After crumple animation completes: closed fist → snap-open hand transition with upward wrist Y-velocity above threshold (basketball-shot release). | State transition + velocity, with refractory window after detection. **Tuning required during milestone 8 against actual filmed footage.** |
+| `wake` | Transition phase `idle` → `wake` (cards rise into the cluster). | Only valid in `idle`. |
+| `spin` | Continuously update `spin.direction` (`cw` / `ccw`) and `spin.speed` (0..1) while held. | Only valid in `wake` and `spin`. |
+| `stopSelect` | Discrete event that ends the spin and transitions `spin` → `select`. | Only valid in `spin`. |
+| `cut` | Discrete event that opens the pack and transitions `select` → `openPack`. | Only valid in `select`. |
+| `accept` | Discrete event for the green-flourish accept path. Transitions `openPack` → `accept` → `idle`. | Only valid in `openPack`. |
+| `reject` | Discrete event that fires the crumple animation. Transitions `openPack` → `reject`. | Only valid in `openPack`. |
+| `throw` | Discrete event with a `velocity` magnitude that fires the basketball-arc throw toward the trash can. Transitions `reject` → `throw` → `idle`. | Only valid in `reject` once crumple has finished, with a refractory window. |
 
-State-machine context guards each event: `spin` only updates while phase = "spin"; `accept` and `reject` only fire in phase "openPack" (after auto-reveal); `throw` only fires while a crumpled-ball is pending. The detector is state-aware via Zustand subscription.
+Cross-cutting requirements the chosen vocabulary MUST satisfy:
+
+- Each gesture is filmable. It has to read clearly in a vertical 9:16 phone capture of the laptop screen and not be visually ambiguous with adjacent gestures.
+- Each gesture has a stability rule (held duration or hysteresis) so a single noisy frame does not fire it.
+- The detector is state-aware: events are dropped when their guard does not match the current phase.
+- Continuous events (`spin`) and discrete events (everything else) are clearly distinguished, so the store knows whether to update or transition.
+
+Until the vocabulary is supplied, all gesture events MUST be triggerable from debug keyboard shortcuts only (see milestone 8). The rest of the architecture (state machine, store, scene, accept/reject paths) is independent of which gesture maps to which slot, and can be built end-to-end without the vocabulary being decided.
 
 ### Off-camera utilities (icons, not gestures)
 
@@ -286,7 +297,7 @@ Ordered milestones. Each is a hand-off point at which the build can be paused an
 
 7. **MediaPipe HandLandmarker integration.** Wire `@mediapipe/tasks-vision` to the webcam stream. Visualize landmark dots on a debug overlay (toggle with `?debug=1`). Performance budget: at least 25 fps on a 2024 MacBook Pro. Acceptance: hand landmarks track the user's hand in real time on the debug overlay.
 
-8. **Gesture vocabulary (locked).** Implement the gesture detector per the table in section 6. Tune thresholds against real filmed footage with the debug overlay on. The throw release is the most fragile; budget extra time for it. Acceptance: each documented gesture produces the correct `GestureEvent` reliably under varied lighting; the on-camera loop runs end-to-end with no keyboard input.
+8. **Gesture vocabulary (blocked on follow-up conversation).** The vocabulary is intentionally TBD in this PRD (see section 6 and section 9). Until it is supplied, expose every gesture event slot as a debug keyboard shortcut and verify the full on-camera loop runs end-to-end via keyboard. Once the vocabulary is decided, implement the gesture detector to emit each `GestureEvent` from the supplied poses, tune thresholds against real filmed footage with the debug overlay on, and budget extra time for the most fragile slot (likely `throw`). Acceptance (post-vocabulary): each gesture produces the correct `GestureEvent` reliably under varied lighting; the on-camera loop runs end-to-end with no keyboard input.
 
 9. **Hall of Frame route.** Toggle gesture or button switches into a museum-style gallery view. Each accepted quest is a framed piece. Click a frame to mark completed (toggleable). Rejected quests never shown. Acceptance: accept three quests, toggle into the gallery, mark one completed, refresh the page, state persists.
 
@@ -326,10 +337,11 @@ Ordered milestones. Each is a hand-off point at which the build can be paused an
 - `quests.json` private, `quests.example.json` public.
 - 7 cards default in idle and spin states.
 - No backend, no API keys at runtime.
-- Gesture vocabulary (see section 6 table): wake (10 fingers, two hands), spin (wrist rotation, 2D fallback), spin speed (thumb-index distance), select (pinch), cut (scissors + horizontal motion), accept (thumbs up), reject (thumbs down), throw (closed-fist-to-open with upward velocity).
+- The **set of gesture event slots** (`wake`, `spin`, `stopSelect`, `cut`, `accept`, `reject`, `throw`) and the state-machine guards on each. The actual poses that fire each slot are intentionally not yet decided (see Open / TBD).
 
 ### Open / TBD
 
+- **Gesture-to-action vocabulary.** Section 6 lists the seven event slots that need a pose mapping plus the cross-cutting requirements (filmability, stability, state-aware guards, continuous vs discrete). To be decided in a follow-up conversation; this section and the section 6 table will be replaced with a locked vocabulary at that point. Until then, the detector emits events only via debug keyboard shortcuts.
 - Card visual design: back pattern, glow palette, typography for quest title face. Treat as a design pass before milestone 5.
 - Trash can styling: cartoon vs realistic. Recommendation: cartoon to match the playful crumple-and-throw beat.
 - Hall of Frame layout: grid vs scrolling gallery vs single-card-at-a-time with arrows. Decide at milestone 9.

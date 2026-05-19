@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useFrame } from "@react-three/fiber";
+import { useTexture } from "@react-three/drei";
 import * as THREE from "three";
 import { Card, type CardHandle, type CardTarget } from "./Card";
 import {
@@ -11,6 +12,7 @@ import {
 } from "../state/config";
 import { useAppStore } from "../state/store";
 import type { Phase } from "../lib/types";
+import { PACK_DESIGNS, packDesignAt } from "./pack-designs";
 
 const ANGLE_STEP = (Math.PI * 2) / CARD_COUNT;
 
@@ -133,6 +135,43 @@ function frontSlot(theta: number): number {
 export function CardPack() {
   const phase = useAppStore((s) => s.phase);
   const spin = useAppStore((s) => s.spin);
+  const packIndex = useAppStore((s) => s.packIndex);
+
+  // Preload every front, back and side texture in a single useTexture
+  // call (drei caches each URL) so swaps between designs are flicker-free.
+  const allUrls = PACK_DESIGNS.flatMap((d) => [
+    d.textureUrl,
+    d.backTextureUrl,
+    d.sideTextureUrl,
+  ]);
+  const textures = useTexture(allUrls);
+  const textureList = Array.isArray(textures) ? textures : [textures];
+  textureList.forEach((tex) => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    tex.anisotropy = 8;
+  });
+  // Each design occupies three consecutive slots in textureList:
+  // 3*i = front, 3*i + 1 = back, 3*i + 2 = side.
+  function texturesForDesign(designIdx: number) {
+    return {
+      front: textureList[designIdx * 3] ?? null,
+      back: textureList[designIdx * 3 + 1] ?? null,
+      side: textureList[designIdx * 3 + 2] ?? null,
+    };
+  }
+
+  /** Returns the design + textures for a given card slot in this round. */
+  function designForSlot(i: number) {
+    const idx = (i + packIndex) % PACK_DESIGNS.length;
+    const tex = texturesForDesign(idx);
+    return {
+      design: packDesignAt(i + packIndex),
+      front: tex.front,
+      back: tex.back,
+      side: tex.side,
+    };
+  }
+
 
   const cardRefs = useRef<(CardHandle | null)[]>([]);
   const groupRef = useRef<THREE.Group>(null);
@@ -146,12 +185,28 @@ export function CardPack() {
    */
   const [chosenIndex, setChosenIndex] = useState<number | null>(null);
 
-  // Apply phase-based targets when phase changes. The chosen card's
-  // target is a placeholder here; useFrame overrides it each tick
-  // when in a selected phase to compensate for cluster rotation.
+  // Apply phase-based targets when phase changes.
+  //
+  // For the chosen card during a selected phase that keeps it visible
+  // (everything except reject / throw), we skip writing a target here
+  // and let `useFrame` below own the chosen-card target entirely. The
+  // reason is subtle: `targetForCard` returns rotation `[0, 0, 0]` for
+  // the chosen card as a placeholder, expecting `useFrame` to override
+  // it on the next tick with a `[0, -theta, 0]` rotation that
+  // compensates for the cluster's rotation so the card faces camera.
+  // Writing the placeholder here on a `select → openPack` transition
+  // briefly makes `target.rotation` `[0, 0, 0]`, and Card's per-frame
+  // rotation lerp can then drift up to ~7% of theta toward 0 in a
+  // single frame before `useFrame` rewrites the target. That single
+  // frame is visible as a small Y-axis "stutter" at the moment the
+  // cut is triggered. Skipping the chosen card here removes the race.
   useEffect(() => {
+    const sel = isSelectedPhase(phase);
     cardRefs.current.forEach((ref, i) => {
       if (!ref) return;
+      const isChosenVisible =
+        i === chosenIndex && sel && phase !== "reject" && phase !== "throw";
+      if (isChosenVisible) return;
       ref.setTarget(targetForCard(i, phase, chosenIndex));
     });
   }, [phase, chosenIndex]);
@@ -171,6 +226,25 @@ export function CardPack() {
     }
     wasSelectedRef.current = sel;
   }, [phase]);
+
+  // Drive the per-card cut animation. Trigger beginCut on the chosen
+  // card the moment the phase enters openPack, and reset every card's
+  // cut state when we leave the openPack/accept/reject group (going
+  // back to idle or any non-cut phase). Cards that are not chosen
+  // never see beginCut, so they animate via the normal target lerp.
+  const wasOpeningRef = useRef(false);
+  useEffect(() => {
+    const opening = phase === "openPack";
+    if (opening && !wasOpeningRef.current && chosenIndex !== null) {
+      cardRefs.current[chosenIndex]?.beginCut();
+    }
+    if (!opening && wasOpeningRef.current) {
+      // Exited openPack: clean up any in-flight cut state on every
+      // card so a future round starts fresh.
+      cardRefs.current.forEach((ref) => ref?.resetCut());
+    }
+    wasOpeningRef.current = opening;
+  }, [phase, chosenIndex]);
 
   useFrame((_, deltaRaw) => {
     const group = groupRef.current;
@@ -231,6 +305,7 @@ export function CardPack() {
     <group ref={groupRef}>
       {Array.from({ length: CARD_COUNT }).map((_, i) => {
         const initial = targetForCard(i, "idle", null);
+        const slot = designForSlot(i);
         return (
           <Card
             key={i}
@@ -238,7 +313,10 @@ export function CardPack() {
               cardRefs.current[i] = el;
             }}
             initial={initial}
-            hue={(i / CARD_COUNT + 0.05) % 1}
+            frontTexture={slot.front}
+            backTexture={slot.back}
+            sideTexture={slot.side}
+            edgeColor={slot.design.edgeColor}
           />
         );
       })}

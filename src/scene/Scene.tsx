@@ -1,4 +1,5 @@
 import { Canvas } from "@react-three/fiber";
+import { ContactShadows } from "@react-three/drei";
 import type { ReactNode } from "react";
 import { WebcamBackground } from "./WebcamBackground";
 import { useWebcam } from "./useWebcam";
@@ -29,10 +30,25 @@ export function Scene({ children, debug = false }: Props) {
         gl={{ antialias: true }}
         className="absolute inset-0"
       >
-        <ambientLight intensity={0.6} />
-        <directionalLight position={[2, 4, 3]} intensity={1.2} />
+        {/* No scene lights. Front/back use MeshBasicMaterial so
+            textures render at their literal PNG colors. The 3D form
+            reads from silhouette + cushion-bulge geometry alone.
+            Subtle lit shading on the bulge is a future iteration; the
+            multiply-blend overlay attempt was reverted because it hid
+            the textures. */}
         {video && <WebcamBackground video={video} />}
         {children}
+        {/* Ground-plane soft shadow below the cluster — anchors packs
+            to the sense of "above a surface". ContactShadows is a
+            self-contained alpha-mapped soft shadow renderer; works
+            without any scene lights. */}
+        <ContactShadows
+          position={[0, -1.95, 0]}
+          opacity={0.45}
+          scale={6}
+          blur={2.6}
+          far={3}
+        />
       </Canvas>
       {debug && <LandmarkDebug frameRef={frameRef} />}
       {debug && <GestureDebugHud detectorRef={detectorRef} />}

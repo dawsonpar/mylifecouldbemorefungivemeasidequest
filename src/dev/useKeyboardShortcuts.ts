@@ -1,7 +1,25 @@
 import { useEffect } from "react";
 import { useAppStore } from "../state/store";
+import {
+  SASHIKO_PATTERN_ORDER,
+  type SashikoPattern,
+} from "../scene/sashiko-patterns";
 
 const KICK_AV = 4.0;
+
+/**
+ * Returns the next pattern in the cycle: null -> asanoha -> shippo
+ * -> jujizashi -> yabane -> null. null means "release the override
+ * and fall back to the quest's own pattern field".
+ */
+function nextPatternInCycle(
+  current: SashikoPattern | null,
+): SashikoPattern | null {
+  if (current === null) return SASHIKO_PATTERN_ORDER[0];
+  const idx = SASHIKO_PATTERN_ORDER.indexOf(current);
+  if (idx < 0 || idx === SASHIKO_PATTERN_ORDER.length - 1) return null;
+  return SASHIKO_PATTERN_ORDER[idx + 1];
+}
 
 /**
  * Dev-only phase shortcuts. Fires GestureEvent-equivalent actions
@@ -17,6 +35,25 @@ export function useKeyboardShortcuts() {
         return;
       }
       const s = store();
+
+      // Cmd+Shift+P (or Ctrl+Shift+P) cycles the sashiko pattern
+      // override. Dev-only so the rotated bundle in production omits
+      // the override entirely and no override indicator ever ships.
+      if (
+        import.meta.env.DEV &&
+        e.shiftKey &&
+        (e.metaKey || e.ctrlKey) &&
+        e.key.toLowerCase() === "p"
+      ) {
+        const next = nextPatternInCycle(s.devPatternOverride);
+        s.setDevPatternOverride(next);
+        console.info(
+          `[dev] sashiko pattern override -> ${next ?? "(quest default)"}`,
+        );
+        e.preventDefault();
+        return;
+      }
+
       switch (e.key.toLowerCase()) {
         case "w":
           s.wake();

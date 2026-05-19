@@ -9,7 +9,8 @@
     "id": "fit-checks-1",
     "title": "10 fit checks with 10 strangers",
     "description": "Find ten people on the street whose outfits you actually like. Stop them. Ask one specific question about a single piece. Compliment one detail.",
-    "requirements": "Real strangers, not friends. No fishing for approval. Note one thing you learned from each conversation."
+    "requirements": "Real strangers, not friends. No fishing for approval. Note one thing you learned from each conversation.",
+    "pattern": "yabane"
   },
   {
     "id": "yes-day-1",
@@ -33,7 +34,8 @@
     "id": "grass-vb-1",
     "title": "Host a grass volleyball session",
     "description": "Pick a park, pick a time, post it publicly. Bring a ball and a net. Show up even if no one else does.",
-    "requirements": "Six players minimum makes it a session. Solo with a wall counts as practice, not as completion."
+    "requirements": "Six players minimum makes it a session. Solo with a wall counts as practice, not as completion.",
+    "pattern": "shippo"
   },
   {
     "id": "doors-1",

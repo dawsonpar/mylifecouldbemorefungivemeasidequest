@@ -1,8 +1,17 @@
+import type { SashikoPattern } from "../scene/sashiko-patterns";
+
 export type Quest = {
   id: string;
   title: string;
   description: string;
   requirements?: string;
+  /**
+   * Pins the inner-card sashiko pattern for this quest. Omitted =
+   * fall back to DEFAULT_PATTERN. Used to vary the card design per
+   * episode for filming without surfacing any override indicator on
+   * camera.
+   */
+  pattern?: SashikoPattern;
 };
 
 export type AcceptedQuest = {

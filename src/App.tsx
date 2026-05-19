@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useMemo, useState } from "react";
 import { Scene } from "./scene/Scene";
 import { CardPack } from "./scene/CardPack";
 import { QuestReveal } from "./scene/QuestReveal";
@@ -43,7 +43,9 @@ export default function App() {
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-black">
       <Scene debug={debugFlag}>
-        <CardPack />
+        <Suspense fallback={null}>
+          <CardPack />
+        </Suspense>
         <AcceptFlourish />
         <QuestReveal />
         <TrashCan />
@@ -76,6 +78,7 @@ function DevHints() {
       <div className="mb-1 uppercase tracking-widest text-neutral-500">dev keys</div>
       <div>w wake · s spin cw · a spin ccw · ± speed · enter select</div>
       <div>c cut · y accept · n reject · t throw · r reset · h hall</div>
+      <div>⌘⇧P cycle sashiko pattern</div>
     </div>
   );
 }

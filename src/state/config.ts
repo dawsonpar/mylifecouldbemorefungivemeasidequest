@@ -1,11 +1,15 @@
 /** Number of cards visible in idle and spin states. */
-export const CARD_COUNT = 7;
+export const CARD_COUNT = 8;
 
-/** Card dimensions in scene units. */
+/**
+ * Card dimensions in scene units. Depth is half of the previous
+ * "booster-pack" thickness — packs read as slim card-sleeves rather
+ * than chunky bricks when viewed from the side.
+ */
 export const CARD_SIZE = {
   width: 0.7,
   height: 1.0,
-  depth: 0.02,
+  depth: 0.03,
 } as const;
 
 /** Circle radius for the spin cluster, centered at origin. */
@@ -15,7 +19,7 @@ export const CLUSTER_RADIUS = 1.4;
 export const IDLE_Y = -1.9;
 
 /** Idle row horizontal extent. */
-export const IDLE_X_RANGE = 2.6;
+export const IDLE_X_RANGE = 3.2;
 
 /** Animation speeds (units per second-ish, used as lerp factors). */
 export const LERP = {

@@ -6,13 +6,33 @@ import type { Quest } from "../lib/types";
 import { CARD_SIZE } from "../state/config";
 import { useAppStore } from "../state/store";
 import { usePhaseTime } from "./usePhaseTime";
+import {
+  SASHIKO_PATTERNS,
+  SashikoPatternDefs,
+  resolvePattern,
+} from "./sashiko-patterns";
 
-const PACK_POSITION: [number, number, number] = [0, 0.2, 1.5];
+// Card sits at world-center (y=0) at the pack's z so it reads as
+// vertically centered on a recorded frame. The pack itself is
+// positioned by CardPack.tsx (`CHOSEN_WORLD`); it can be off-center
+// without affecting this.
+const PACK_POSITION: [number, number, number] = [0, 0, 1.5];
 
 /**
- * Cut beat: a horizontal slice traverses the top of the pack over
- * ~0.45s. Reveal beat: an inner card slides out and forward to a
- * larger size, with the quest face projected via drei <Html>.
+ * Temporary debug flag for iterating on the pack-cut animation in
+ * isolation. While true, the inner card and its quest text are
+ * hidden so the body fall + seal drift in `Card.tsx` can be
+ * evaluated without anything in front of it. Flip back to false
+ * once the cut animation is locked.
+ */
+const HIDE_INNER_CARD_FOR_CUT_TESTING = false;
+
+/**
+ * Reveal beat: an inner card slides out and forward to a larger
+ * size, with the quest face projected via drei <Html>. The card
+ * adopts a sashiko (Japanese stitched-cloth) aesthetic; the pattern
+ * is selected from the registry by combining the dev-only keyboard
+ * override with the quest's own optional `pattern` field.
  */
 export function QuestReveal() {
   const phase = useAppStore((s) => s.phase);
@@ -26,47 +46,12 @@ export function QuestReveal() {
   const showQuestFace = phase === "openPack" || phase === "accept";
 
   if (!currentQuest || !showQuestFace) return null;
+  if (HIDE_INNER_CARD_FOR_CUT_TESTING) return null;
 
   return (
     <group position={PACK_POSITION}>
-      <Slice phaseTime={phaseTime} />
       <InnerCard quest={currentQuest} phaseTime={phaseTime} />
     </group>
-  );
-}
-
-function Slice({ phaseTime }: { phaseTime: { current: number } }) {
-  const meshRef = useRef<THREE.Mesh>(null);
-  const matRef = useRef<THREE.MeshBasicMaterial>(null);
-
-  const SLICE_DURATION = 0.45;
-
-  useFrame(() => {
-    const t = phaseTime.current;
-    if (!meshRef.current || !matRef.current) return;
-
-    if (t <= 0 || t >= SLICE_DURATION) {
-      matRef.current.opacity = 0;
-      return;
-    }
-
-    const progress = t / SLICE_DURATION;
-    matRef.current.opacity = 1;
-    meshRef.current.scale.x = progress;
-    meshRef.current.position.y = CARD_SIZE.height * 0.5 * 1.25 + 0.02;
-  });
-
-  return (
-    <mesh ref={meshRef} position={[0, CARD_SIZE.height * 0.5, 0.05]}>
-      <planeGeometry args={[CARD_SIZE.width * 1.2, 0.015]} />
-      <meshBasicMaterial
-        ref={matRef}
-        color="#ef4444"
-        transparent
-        opacity={0}
-        toneMapped={false}
-      />
-    </mesh>
   );
 }
 
@@ -78,6 +63,9 @@ function InnerCard({
   phaseTime: { current: number };
 }) {
   const groupRef = useRef<THREE.Group>(null);
+  const devOverride = useAppStore((s) => s.devPatternOverride);
+  const pattern = resolvePattern(quest.pattern, devOverride);
+  const { fillId } = SASHIKO_PATTERNS[pattern];
 
   const SLIDE_DELAY = 0.35;
   const SLIDE_DURATION = 0.7;
@@ -101,17 +89,38 @@ function InnerCard({
         ? 0
         : Math.min(1, (t - SLIDE_DELAY) / SLIDE_DURATION);
     const e = easeOutCubic(eased);
-    g.position.y = e * 0.2;
-    g.position.z = e * 0.6;
+    // No y/z motion: the card stays centered at the pack position
+    // and only grows in scale as it surfaces. The pack body falls
+    // away on its own (Card.tsx cut animation) revealing the card
+    // beneath rather than the card sliding in from elsewhere.
+    g.position.set(0, 0, 0);
     g.scale.setScalar(0.6 + e * 0.55);
   });
 
+  // Card sizing follows typography research: body line-height 1.5
+  // to 1.7x, heading 1.1 to 1.3x, optimal line length 50 to 75
+  // characters. Content inset is ~10.4% of width on each side so
+  // body wraps near the lower end of that range and never feels
+  // edge-to-edge. Spacing follows an 8-pt grid for vertical rhythm.
+  const pxW = 500;
+  const pxH = Math.round(pxW * (innerSize.height / innerSize.width));
+  const bandH = Math.round(pxH * 0.14);
+  // Top inset hosts a tiny eyebrow caption only, so the pattern band
+  // already feels well-separated from the first line. Bottom inset
+  // sits below a multi-line body block which carries more visual
+  // weight, so we add more space below to balance the perceived
+  // breathing room on both sides.
+  const stackInsetTop = bandH + 40;
+  const stackInsetBottom = bandH + 60;
+
   return (
     <group ref={groupRef} position={[0, 0, 0]} scale={0.6}>
-      <mesh>
-        <boxGeometry args={[innerSize.width, innerSize.height, CARD_SIZE.depth]} />
-        <meshStandardMaterial color="#fafaf5" roughness={0.5} metalness={0.05} />
-      </mesh>
+      {/*
+        No backing boxGeometry: it would scale with the parent group
+        during slide-in but drei <Html transform> sizes itself from
+        camera distance, so the two diverge in screen space. The HTML
+        overlay's indigo gradient + sashiko bands ARE the card face.
+      */}
       <Html
         transform
         occlude
@@ -119,25 +128,159 @@ function InnerCard({
         distanceFactor={1}
         style={{ pointerEvents: "none" }}
       >
+        <SashikoPatternDefs />
         <div
           style={{
-            width: `${innerSize.width * 200}px`,
-            height: `${innerSize.height * 200}px`,
+            width: `${pxW}px`,
+            height: `${pxH}px`,
+            position: "relative",
+            overflow: "hidden",
+            borderRadius: 12,
+            background: "linear-gradient(180deg, #1a3a5c 0%, #14304d 100%)",
+            color: "#efeadc",
+            fontFamily: "Inter, system-ui, sans-serif",
           }}
-          className="flex flex-col gap-2 rounded-md bg-[#fafaf5] p-4 font-sans text-[#111]"
         >
-          <div className="text-[18px] font-semibold leading-tight tracking-tight">
-            {quest.title}
-          </div>
-          <div className="text-[11px] leading-snug text-[#3b3b3b]">
-            {quest.description}
-          </div>
-          {quest.requirements && (
-            <div className="mt-1 border-t border-[#ddd] pt-1 text-[10px] leading-snug text-[#555]">
-              <span className="font-semibold uppercase tracking-widest">required: </span>
-              {quest.requirements}
+          {/* indigo cloth grain */}
+          <div
+            style={{
+              position: "absolute",
+              inset: 0,
+              backgroundImage:
+                "repeating-linear-gradient(90deg, rgba(255,255,255,0.015) 0, rgba(255,255,255,0.015) 1px, transparent 1px, transparent 3px)",
+              pointerEvents: "none",
+              zIndex: 1,
+            }}
+          />
+          {/* top + bottom sashiko bands */}
+          <svg
+            preserveAspectRatio="xMidYMid slice"
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              top: 0,
+              width: "100%",
+              height: `${bandH}px`,
+              zIndex: 2,
+            }}
+          >
+            <rect width="100%" height="100%" fill={`url(#${fillId})`} />
+          </svg>
+          <svg
+            preserveAspectRatio="xMidYMid slice"
+            style={{
+              position: "absolute",
+              left: 0,
+              right: 0,
+              bottom: 0,
+              width: "100%",
+              height: `${bandH}px`,
+              zIndex: 2,
+            }}
+          >
+            <rect width="100%" height="100%" fill={`url(#${fillId})`} />
+          </svg>
+
+          {/* content stack */}
+          <div
+            style={{
+              position: "absolute",
+              top: stackInsetTop,
+              bottom: stackInsetBottom,
+              left: 52,
+              right: 52,
+              display: "flex",
+              flexDirection: "column",
+              zIndex: 3,
+            }}
+          >
+            {/* Eyebrow. Small-cap label benefits from wide tracking
+                (0.32em) so the spaced caps read as editorial rather
+                than a missed kerning pair. */}
+            <div
+              style={{
+                fontSize: 14,
+                letterSpacing: "0.32em",
+                fontWeight: 500,
+                color: "#d8ceaf",
+                textTransform: "uppercase",
+                marginBottom: 32,
+                display: "flex",
+                justifyContent: "space-between",
+              }}
+            >
+              <span>Side Quest</span>
             </div>
-          )}
+            {/* Title. Heading leading kept tight at 1.1x (within the
+                1.1 to 1.3 range that headings sit best at — larger
+                type wants less line-height). Slight negative tracking
+                keeps the Noto Serif JP wordmark looking confident. */}
+            <h3
+              style={{
+                fontFamily:
+                  '"Noto Serif JP", "Cormorant Garamond", serif',
+                fontSize: 42,
+                fontWeight: 700,
+                lineHeight: 1.1,
+                letterSpacing: "-0.01em",
+                color: "#f5efde",
+                margin: "0 0 28px",
+              }}
+            >
+              {quest.title}
+            </h3>
+            {/* Description. Body leading at 1.6x (within the 1.5 to
+                1.7 readability range). Content width ~396px puts the
+                line length at 40 to 50 characters which is on the
+                short-but-comfortable side of the 50 to 75 range —
+                a deliberate trade for the card aspect. */}
+            <p
+              style={{
+                fontSize: 19,
+                lineHeight: 1.6,
+                fontWeight: 300,
+                color: "#f3ecd4",
+                margin: 0,
+                marginBottom: "auto",
+              }}
+            >
+              {quest.description}
+            </p>
+            {quest.requirements && (
+              <div
+                style={{
+                  borderTop: "1px solid rgba(239,234,220,0.22)",
+                  paddingTop: 20,
+                  marginTop: 32,
+                }}
+              >
+                <span
+                  style={{
+                    fontSize: 13,
+                    letterSpacing: "0.32em",
+                    fontWeight: 500,
+                    color: "#cac0a3",
+                    textTransform: "uppercase",
+                    marginBottom: 14,
+                    display: "block",
+                  }}
+                >
+                  Required
+                </span>
+                <div
+                  style={{
+                    fontSize: 17,
+                    lineHeight: 1.6,
+                    fontWeight: 400,
+                    color: "#f3ecd4",
+                  }}
+                >
+                  {quest.requirements}
+                </div>
+              </div>
+            )}
+          </div>
         </div>
       </Html>
     </group>
