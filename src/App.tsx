@@ -6,6 +6,7 @@ import { AcceptFlourish } from "./scene/AcceptFlourish";
 import { TrashCan } from "./scene/TrashCan";
 import { CrumpleBall } from "./scene/CrumpleBall";
 import { AcceptOverlay } from "./hud/AcceptOverlay";
+import { AcceptFlash } from "./hud/AcceptFlash";
 import { IconTray } from "./hud/IconTray";
 import { AdminPanel } from "./hud/AdminPanel";
 import { HallOfFrame } from "./pages/HallOfFrame";
@@ -51,6 +52,7 @@ export default function App() {
         <TrashCan />
         <CrumpleBall />
       </Scene>
+      <AcceptFlash />
       <AcceptOverlay />
       <HallOfFrame />
       <IconTray onOpenAdmin={() => setAdminOpen(true)} forceVisible={adminFlag} />
@@ -78,7 +80,7 @@ function DevHints() {
       <div className="mb-1 uppercase tracking-widest text-neutral-500">dev keys</div>
       <div>w wake · s spin cw · a spin ccw · ± speed · enter select</div>
       <div>c cut · y accept · n reject · t throw · r reset · h hall</div>
-      <div>⌘⇧P cycle sashiko pattern</div>
+      <div>f toggle accept flash · ⌘⇧P cycle sashiko pattern</div>
     </div>
   );
 }

@@ -49,3 +49,34 @@ body,
     transform: translateY(0) scale(1);
   }
 }
+
+/*
+ * Full-screen accept flash. Three discrete pulses then a fade.
+ * Driven by the compositor so the main thread (and the MediaPipe
+ * camera-feed pipeline) is not blocked by per-frame React renders.
+ * Peak opacity lives in the keyframe (0.85); duration is set on the
+ * `animation` shorthand at the call site.
+ */
+@keyframes acceptFlash {
+  0% {
+    opacity: 0;
+  }
+  14% {
+    opacity: 0.85;
+  }
+  32% {
+    opacity: 0.05;
+  }
+  44% {
+    opacity: 0.85;
+  }
+  62% {
+    opacity: 0.05;
+  }
+  68% {
+    opacity: 0.85;
+  }
+  100% {
+    opacity: 0;
+  }
+}

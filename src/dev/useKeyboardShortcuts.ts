@@ -95,6 +95,11 @@ export function useKeyboardShortcuts() {
         case "h":
           s.toggleCollection();
           break;
+        case "f":
+          s.setAcceptFlashMode(
+            s.acceptFlashMode === "halo" ? "screen" : "halo",
+          );
+          break;
         default:
           return;
       }

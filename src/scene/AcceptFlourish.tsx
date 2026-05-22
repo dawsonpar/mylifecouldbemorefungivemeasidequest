@@ -11,13 +11,14 @@ import { usePhaseTime } from "./usePhaseTime";
  */
 export function AcceptFlourish() {
   const phase = useAppStore((s) => s.phase);
+  const mode = useAppStore((s) => s.acceptFlashMode);
   const phaseTime = usePhaseTime(phase, "accept");
   const meshRef = useRef<THREE.Mesh>(null);
   const matRef = useRef<THREE.MeshBasicMaterial>(null);
 
   useFrame(() => {
     if (!meshRef.current || !matRef.current) return;
-    if (phase !== "accept") {
+    if (phase !== "accept" || mode !== "halo") {
       matRef.current.opacity = 0;
       return;
     }

@@ -14,10 +14,6 @@ import {
   saveRejected,
 } from "../lib/storage";
 import { loadQuestPool, pickRandom, rejectedIdSet } from "../lib/quests";
-import {
-  loadAcceptanceMessages,
-  pickAcceptanceMessage,
-} from "../lib/messages";
 import { canTransition } from "./transitions";
 
 type SpinState = {
@@ -29,6 +25,8 @@ type SpinState = {
   openness: number;
 };
 
+export type AcceptFlashMode = "halo" | "screen";
+
 type AppState = {
   phase: Phase;
   pool: Quest[];
@@ -37,7 +35,6 @@ type AppState = {
   currentQuest: Quest | null;
   accepted: AcceptedQuest[];
   rejected: RejectedQuest[];
-  acceptanceMessage: string | null;
   throwHit: boolean | null;
   forcedNextQuestId: string | null;
   /**
@@ -53,6 +50,19 @@ type AppState = {
    * null in production.
    */
   devPatternOverride: SashikoPattern | null;
+  /**
+   * Visual treatment used during the accept beat. "halo" keeps the
+   * scene-space green ring behind the card; "screen" replaces it with
+   * a full-screen flashing overlay. Toggled by the dev `f` key.
+   */
+  acceptFlashMode: AcceptFlashMode;
+  /**
+   * `performance.now()` at the moment openPack was entered. Used to
+   * gate accept/reject behind a short "invincibility" window so that
+   * a gesture trailing the cut cannot immediately accept the quest
+   * before the user has a chance to read it.
+   */
+  openPackEnteredAt: number | null;
 };
 
 type AppActions = {
@@ -71,7 +81,15 @@ type AppActions = {
   forceNextQuest(questId: string | null): void;
   addLocalQuest(quest: Quest): void;
   setDevPatternOverride(pattern: SashikoPattern | null): void;
+  setAcceptFlashMode(mode: AcceptFlashMode): void;
 };
+
+/**
+ * Milliseconds after entering openPack during which accept/reject are
+ * suppressed. The cut animation lands at ~1.1s; the extra time gives
+ * the user a beat to soak the reveal before a gesture can resolve it.
+ */
+export const OPENPACK_GRACE_MS = 2300;
 
 export type AppStore = AppState & AppActions;
 
@@ -83,11 +101,12 @@ const INITIAL_STATE: AppState = {
   currentQuest: null,
   accepted: [],
   rejected: [],
-  acceptanceMessage: null,
   throwHit: null,
   forcedNextQuestId: null,
   packIndex: 0,
   devPatternOverride: null,
+  acceptFlashMode: "screen",
+  openPackEnteredAt: null,
 };
 
 export const useAppStore = create<AppStore>((set, get) => {
@@ -115,7 +134,6 @@ export const useAppStore = create<AppStore>((set, get) => {
         Promise.resolve(loadAccepted()),
         Promise.resolve(loadRejected()),
       ]);
-      await loadAcceptanceMessages();
       set({ pool, accepted, rejected, poolLoaded: true });
     },
 
@@ -178,30 +196,35 @@ export const useAppStore = create<AppStore>((set, get) => {
     },
 
     cut() {
-      setPhase("openPack");
+      if (!setPhase("openPack")) return;
+      set({ openPackEnteredAt: performance.now() });
     },
 
     async acceptCurrent() {
       const state = get();
       if (!state.currentQuest) return;
+      if (state.openPackEnteredAt !== null) {
+        const elapsed = performance.now() - state.openPackEnteredAt;
+        if (elapsed < OPENPACK_GRACE_MS) return;
+      }
       if (!setPhase("accept")) return;
       const accepted: AcceptedQuest = {
         questId: state.currentQuest.id,
         acceptedAt: new Date().toISOString(),
         completedAt: null,
       };
-      const messages = await loadAcceptanceMessages();
       const next = [...state.accepted, accepted];
-      set({
-        accepted: next,
-        acceptanceMessage: pickAcceptanceMessage(messages),
-      });
+      set({ accepted: next });
       saveAccepted(next);
     },
 
     rejectCurrent() {
       const state = get();
       if (!state.currentQuest) return;
+      if (state.openPackEnteredAt !== null) {
+        const elapsed = performance.now() - state.openPackEnteredAt;
+        if (elapsed < OPENPACK_GRACE_MS) return;
+      }
       if (!setPhase("reject")) return;
       const rejected: RejectedQuest = {
         questId: state.currentQuest.id,
@@ -223,9 +246,9 @@ export const useAppStore = create<AppStore>((set, get) => {
       set((state) => ({
         currentQuest: null,
         spin: { direction: "cw", speed: 0, handAV: 0, openness: 0.5 },
-        acceptanceMessage: null,
         throwHit: null,
         packIndex: state.packIndex + 1,
+        openPackEnteredAt: null,
       }));
     },
 
@@ -261,6 +284,10 @@ export const useAppStore = create<AppStore>((set, get) => {
 
     setDevPatternOverride(pattern) {
       set({ devPatternOverride: pattern });
+    },
+
+    setAcceptFlashMode(mode) {
+      set({ acceptFlashMode: mode });
     },
   };
 });

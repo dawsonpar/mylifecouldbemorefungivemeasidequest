@@ -1,15 +1,66 @@
 import { useAppStore } from "../state/store";
 
+/*
+ * Typography mirrors the inner quest card (`QuestReveal.tsx`): the
+ * "ACCEPTED" eyebrow matches the card's "SIDE QUEST" / "REQUIRED"
+ * eyebrow style, and the message uses the same serif stack and weight
+ * as the card title so the overlay reads as a continuation of the card,
+ * not a separate UI surface.
+ */
+const EYEBROW_COLOR = "#d8ceaf";
+const TITLE_COLOR = "#f5efde";
+const SANS_STACK = "Inter, system-ui, sans-serif";
+const SERIF_STACK = '"Noto Serif JP", "Cormorant Garamond", serif';
+
 export function AcceptOverlay() {
   const phase = useAppStore((s) => s.phase);
-  const message = useAppStore((s) => s.acceptanceMessage);
 
-  if (phase !== "accept" || !message) return null;
+  if (phase !== "accept") return null;
 
   return (
-    <div className="pointer-events-none absolute inset-0 flex items-end justify-center pb-32">
-      <div className="rounded-full bg-[#22c55e] px-6 py-3 font-mono text-sm uppercase tracking-[0.25em] text-black shadow-[0_0_60px_rgba(34,197,94,0.5)] animate-[acceptPop_0.5s_ease-out]">
-        {message}
+    <div className="pointer-events-none absolute inset-0 flex items-end justify-center pb-6">
+      <div
+        className="[animation:acceptPop_0.8s_ease-out]"
+        style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 18,
+          padding: "20px 44px 22px",
+          borderRadius: 6,
+          background: "rgba(15, 26, 42, 0.62)",
+          backdropFilter: "blur(14px) saturate(120%)",
+          WebkitBackdropFilter: "blur(14px) saturate(120%)",
+          border: "1px solid rgba(216, 206, 175, 0.18)",
+          boxShadow:
+            "0 18px 40px rgba(0,0,0,0.45), 0 2px 0 rgba(255,255,255,0.04) inset",
+        }}
+      >
+        <span
+          style={{
+            fontFamily: SANS_STACK,
+            fontSize: 13,
+            fontWeight: 500,
+            letterSpacing: "0.32em",
+            textTransform: "uppercase",
+            color: EYEBROW_COLOR,
+          }}
+        >
+          Side Quest
+        </span>
+        <span
+          style={{
+            fontFamily: SERIF_STACK,
+            fontSize: 36,
+            fontWeight: 700,
+            lineHeight: 1.1,
+            letterSpacing: "-0.01em",
+            color: TITLE_COLOR,
+            textAlign: "center",
+          }}
+        >
+          Accepted
+        </span>
       </div>
     </div>
   );

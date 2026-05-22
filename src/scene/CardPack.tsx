@@ -228,19 +228,17 @@ export function CardPack() {
   }, [phase]);
 
   // Drive the per-card cut animation. Trigger beginCut on the chosen
-  // card the moment the phase enters openPack, and reset every card's
-  // cut state when we leave the openPack/accept/reject group (going
-  // back to idle or any non-cut phase). Cards that are not chosen
-  // never see beginCut, so they animate via the normal target lerp.
+  // card the moment the phase enters openPack. Cut state must persist
+  // through accept/reject/throw so the pack stays visibly cut while
+  // the quest card holds focus; only reset when we land back in idle
+  // for the next round.
   const wasOpeningRef = useRef(false);
   useEffect(() => {
     const opening = phase === "openPack";
     if (opening && !wasOpeningRef.current && chosenIndex !== null) {
       cardRefs.current[chosenIndex]?.beginCut();
     }
-    if (!opening && wasOpeningRef.current) {
-      // Exited openPack: clean up any in-flight cut state on every
-      // card so a future round starts fresh.
+    if (phase === "idle") {
       cardRefs.current.forEach((ref) => ref?.resetCut());
     }
     wasOpeningRef.current = opening;

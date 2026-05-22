@@ -2,7 +2,7 @@ import { useMemo, useRef } from "react";
 import { useFrame } from "@react-three/fiber";
 import { Html } from "@react-three/drei";
 import * as THREE from "three";
-import type { Quest } from "../lib/types";
+import type { Phase, Quest } from "../lib/types";
 import { CARD_SIZE } from "../state/config";
 import { useAppStore } from "../state/store";
 import { usePhaseTime } from "./usePhaseTime";
@@ -50,7 +50,7 @@ export function QuestReveal() {
 
   return (
     <group position={PACK_POSITION}>
-      <InnerCard quest={currentQuest} phaseTime={phaseTime} />
+      <InnerCard quest={currentQuest} phaseTime={phaseTime} phase={phase} />
     </group>
   );
 }
@@ -58,9 +58,11 @@ export function QuestReveal() {
 function InnerCard({
   quest,
   phaseTime,
+  phase,
 }: {
   quest: Quest;
   phaseTime: { current: number };
+  phase: Phase;
 }) {
   const groupRef = useRef<THREE.Group>(null);
   const devOverride = useAppStore((s) => s.devPatternOverride);
@@ -83,6 +85,14 @@ function InnerCard({
   useFrame(() => {
     const g = groupRef.current;
     if (!g) return;
+    // Accept (and other downstream phases) holds the card at its
+    // landed scale. phaseTime is keyed to openPack only and would
+    // otherwise snap back to 0 here, shrinking the card mid-beat.
+    if (phase !== "openPack") {
+      g.position.set(0, 0, 0);
+      g.scale.setScalar(0.6 + 0.55);
+      return;
+    }
     const t = phaseTime.current;
     const eased =
       t < SLIDE_DELAY
