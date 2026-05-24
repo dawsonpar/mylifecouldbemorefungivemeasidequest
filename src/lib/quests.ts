@@ -1,5 +1,6 @@
 import type { Quest } from "./types";
 import { loadLocalQuests } from "./storage";
+import { getActiveQuestPool, type QuestPool } from "./quest-pools";
 
 async function fetchJson<T>(url: string): Promise<T | null> {
   try {
@@ -12,13 +13,20 @@ async function fetchJson<T>(url: string): Promise<T | null> {
 }
 
 /**
- * Resolution order: quests.json (private, baked into deployed build) ->
- * quests.example.json (public sample pool) -> []. Local additions from
- * localStorage are merged on top.
+ * Resolves the active quest pool: tries the pool's privateUrl first
+ * (deployed override, gitignored), falls back to its canonical url
+ * (committed sample), falls back to []. localStorage additions from
+ * the admin panel are merged on top regardless of pool — they're a
+ * dev convenience, not part of any pool's identity.
+ *
+ * Pool selection is read from the `?quests=<id>` URL param at module
+ * load (see quest-pools.ts).
  */
-export async function loadQuestPool(): Promise<Quest[]> {
-  const real = await fetchJson<Quest[]>("/quests.json");
-  const sample = real ?? (await fetchJson<Quest[]>("/quests.example.json")) ?? [];
+export async function loadQuestPool(pool: QuestPool = getActiveQuestPool()): Promise<Quest[]> {
+  const privateContent = pool.privateUrl
+    ? await fetchJson<Quest[]>(pool.privateUrl)
+    : null;
+  const sample = privateContent ?? (await fetchJson<Quest[]>(pool.url)) ?? [];
   const local = loadLocalQuests();
   const seen = new Set<string>();
   const merged: Quest[] = [];

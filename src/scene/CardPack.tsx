@@ -12,7 +12,7 @@ import {
 } from "../state/config";
 import { useAppStore } from "../state/store";
 import type { Phase } from "../lib/types";
-import { PACK_DESIGNS, packDesignAt } from "./pack-designs";
+import { ACTIVE_PACK_SET, packDesignAt } from "./pack-sets";
 
 const ANGLE_STEP = (Math.PI * 2) / CARD_COUNT;
 
@@ -152,9 +152,12 @@ export function CardPack() {
   const spin = useAppStore((s) => s.spin);
   const packIndex = useAppStore((s) => s.packIndex);
 
-  // Preload every front, back and side texture in a single useTexture
-  // call (drei caches each URL) so swaps between designs are flicker-free.
-  const allUrls = PACK_DESIGNS.flatMap((d) => [
+  // Preload every front, back and side texture for the ACTIVE pack
+  // set in a single useTexture call (drei caches each URL) so swaps
+  // between designs are flicker-free. Inactive pack sets don't load
+  // any textures — the active set is fixed for the session.
+  const packs = ACTIVE_PACK_SET.packs;
+  const allUrls = packs.flatMap((d) => [
     d.textureUrl,
     d.backTextureUrl,
     d.sideTextureUrl,
@@ -177,7 +180,7 @@ export function CardPack() {
 
   /** Returns the design + textures for a given card slot in this round. */
   function designForSlot(i: number) {
-    const idx = (i + packIndex) % PACK_DESIGNS.length;
+    const idx = (i + packIndex) % packs.length;
     const tex = texturesForDesign(idx);
     return {
       design: packDesignAt(i + packIndex),
