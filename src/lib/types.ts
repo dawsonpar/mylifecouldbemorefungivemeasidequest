@@ -32,6 +32,7 @@ export type Phase =
   | "select"
   | "openPack"
   | "accept"
+  | "acceptOutro"
   | "reject"
   | "throw"
   | "collection";

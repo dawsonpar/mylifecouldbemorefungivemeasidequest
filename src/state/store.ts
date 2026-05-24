@@ -82,6 +82,7 @@ type AppActions = {
   addLocalQuest(quest: Quest): void;
   setDevPatternOverride(pattern: SashikoPattern | null): void;
   setAcceptFlashMode(mode: AcceptFlashMode): void;
+  beginAcceptOutro(): void;
 };
 
 /**
@@ -288,6 +289,10 @@ export const useAppStore = create<AppStore>((set, get) => {
 
     setAcceptFlashMode(mode) {
       set({ acceptFlashMode: mode });
+    },
+
+    beginAcceptOutro() {
+      setPhase("acceptOutro");
     },
   };
 });

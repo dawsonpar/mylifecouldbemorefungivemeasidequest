@@ -39,11 +39,13 @@ export function QuestReveal() {
   const currentQuest = useAppStore((s) => s.currentQuest);
   const phaseTime = usePhaseTime(phase, "openPack");
 
-  // Show the quest face during openPack and accept only. During
-  // reject/throw the card has collapsed into the crumple ball;
+  // Show the quest face during openPack, accept, and acceptOutro.
+  // During reject/throw the card has collapsed into the crumple ball;
   // keeping the quest face up would block the ball's path to the
-  // trash can in the background.
-  const showQuestFace = phase === "openPack" || phase === "accept";
+  // trash can in the background. acceptOutro keeps it mounted so the
+  // fade-out keyframe can play before the card unmounts at idle.
+  const showQuestFace =
+    phase === "openPack" || phase === "accept" || phase === "acceptOutro";
 
   if (!currentQuest || !showQuestFace) return null;
   if (HIDE_INNER_CARD_FOR_CUT_TESTING) return null;
@@ -149,6 +151,14 @@ function InnerCard({
             background: "linear-gradient(180deg, #1a3a5c 0%, #14304d 100%)",
             color: "#efeadc",
             fontFamily: "Inter, system-ui, sans-serif",
+            // Fade-out keyframe runs only during acceptOutro. Duration
+            // matches ACCEPT_OUTRO_MS in useAutoAdvance.ts; `forwards`
+            // pins opacity at 0 so the card stays invisible through
+            // the brief gap before idle takes over.
+            animation:
+              phase === "acceptOutro"
+                ? "acceptOutroFade 0.7s ease-in forwards"
+                : undefined,
           }}
         >
           {/* indigo cloth grain */}

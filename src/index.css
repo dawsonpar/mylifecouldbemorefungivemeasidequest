@@ -57,6 +57,24 @@ body,
  * Peak opacity lives in the keyframe (0.85); duration is set on the
  * `animation` shorthand at the call site.
  */
+/*
+ * Outro fade for the accept-state HUD layers (AcceptOverlay panel +
+ * QuestReveal inner card). Runs once when phase becomes
+ * `acceptOutro`. Slight downward drift keeps the panels feeling
+ * "settled" rather than blinked off. Duration must match
+ * `ACCEPT_OUTRO_MS` in useAutoAdvance.ts.
+ */
+@keyframes acceptOutroFade {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+}
+
 @keyframes acceptFlash {
   0% {
     opacity: 0;

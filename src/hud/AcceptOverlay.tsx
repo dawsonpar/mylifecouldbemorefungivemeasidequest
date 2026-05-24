@@ -15,13 +15,22 @@ const SERIF_STACK = '"Noto Serif JP", "Cormorant Garamond", serif';
 export function AcceptOverlay() {
   const phase = useAppStore((s) => s.phase);
 
-  if (phase !== "accept") return null;
+  if (phase !== "accept" && phase !== "acceptOutro") return null;
+
+  // `accept` runs the entry pop; `acceptOutro` swaps in the fade-out
+  // keyframe so the panel eases off rather than hard-cutting at the
+  // moment the phase flips to idle. Duration here must match
+  // ACCEPT_OUTRO_MS in useAutoAdvance.ts.
+  const animation =
+    phase === "accept"
+      ? "acceptPop 0.8s ease-out"
+      : "acceptOutroFade 0.7s ease-in forwards";
 
   return (
     <div className="pointer-events-none absolute inset-0 flex items-end justify-center pb-6">
       <div
-        className="[animation:acceptPop_0.8s_ease-out]"
         style={{
+          animation,
           display: "flex",
           flexDirection: "column",
           alignItems: "center",

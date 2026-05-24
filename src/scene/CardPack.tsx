@@ -21,6 +21,20 @@ const CHOSEN_WORLD: [number, number, number] = [0, 0.2, 1.5];
 const CHOSEN_SCALE = 1.25;
 
 /**
+ * Idle-entry animation. When phase transitions INTO idle (e.g. from
+ * acceptOutro), every card snaps to invisible at `IDLE_Y -
+ * IDLE_ENTRY_DROP`, waits `IDLE_ENTRY_DELAY_MS` (the empty beat the
+ * user sees after the accept HUD has faded), then lerps up to the
+ * regular idle row target. The per-card opacity lerp gives the
+ * fade-in for free.
+ *
+ * The drop must be large enough to read as "rising"; the delay must
+ * leave a perceptible gap of nothing on screen. Tune together.
+ */
+const IDLE_ENTRY_DROP = 0.7;
+const IDLE_ENTRY_DELAY_MS = 350;
+
+/**
  * Returns whether the given phase should display the "chosen card
  * in front, others dropped" arrangement.
  */
@@ -29,6 +43,7 @@ function isSelectedPhase(phase: Phase): boolean {
     phase === "select" ||
     phase === "openPack" ||
     phase === "accept" ||
+    phase === "acceptOutro" ||
     phase === "reject" ||
     phase === "throw"
   );
@@ -200,7 +215,49 @@ export function CardPack() {
   // single frame before `useFrame` rewrites the target. That single
   // frame is visible as a small Y-axis "stutter" at the moment the
   // cut is triggered. Skipping the chosen card here removes the race.
+  //
+  // Entering idle from another phase runs the rise+fade-in: every
+  // card is snapped to opacity 0 and dropped below the row, then
+  // after IDLE_ENTRY_DELAY_MS the real idle target is written so the
+  // per-card lerp surfaces them. The snap is what makes resetCut()
+  // (called by the cut-state effect on idle entry) invisible — the
+  // pack body would otherwise pop back to assembled at full opacity
+  // for the chosen slot.
+  const prevPhaseRef = useRef<Phase | null>(null);
   useEffect(() => {
+    const prev = prevPhaseRef.current;
+    prevPhaseRef.current = phase;
+
+    const enteringIdle =
+      phase === "idle" && prev !== null && prev !== "idle";
+
+    if (enteringIdle) {
+      // Snap every card to the low row position, invisible. Snap (not
+      // setTarget) is required because the chosen card was at
+      // front-center during accept; a plain target write would let it
+      // lerp down from y=0.2 over many frames and fade in mid-flight,
+      // reading as "the chosen card falls into place" instead of the
+      // whole row rising together.
+      cardRefs.current.forEach((ref, i) => {
+        if (!ref) return;
+        const rowX =
+          (i - (CARD_COUNT - 1) / 2) * (IDLE_X_RANGE / CARD_COUNT);
+        ref.snap({
+          position: [rowX, IDLE_Y - IDLE_ENTRY_DROP, 0],
+          rotation: [-Math.PI / 2.2, 0, 0],
+          scale: 0.55,
+          opacity: 0,
+        });
+      });
+      const id = window.setTimeout(() => {
+        cardRefs.current.forEach((ref, i) => {
+          if (!ref) return;
+          ref.setTarget(targetForCard(i, "idle", null));
+        });
+      }, IDLE_ENTRY_DELAY_MS);
+      return () => window.clearTimeout(id);
+    }
+
     const sel = isSelectedPhase(phase);
     cardRefs.current.forEach((ref, i) => {
       if (!ref) return;
@@ -209,6 +266,7 @@ export function CardPack() {
       if (isChosenVisible) return;
       ref.setTarget(targetForCard(i, phase, chosenIndex));
     });
+    return undefined;
   }, [phase, chosenIndex]);
 
   // Freeze cluster rotation the instant we enter a selected phase

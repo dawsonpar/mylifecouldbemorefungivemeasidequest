@@ -25,6 +25,22 @@ export type CardHandle = {
   beginCut(): void;
   /** Reset the cut animation back to the assembled-pack state. */
   resetCut(): void;
+  /**
+   * Force-snap visual state to the provided target values, bypassing
+   * the per-frame lerp, AND write those same values into the lerp
+   * target so the card holds there on the next frame.
+   *
+   * Used at phase boundaries where the next animation needs a clean
+   * starting point. The idle rise-in is the load-bearing example: the
+   * chosen card is at front-center (y=0.2, scale 1.25) during accept,
+   * but the rise should start from below the row. Without a snap, the
+   * card's position would lerp from front-center down to the low
+   * target over many frames, so by the time opacity starts rising it
+   * would still be visibly higher than the others.
+   *
+   * Any omitted field is left untouched.
+   */
+  snap(t: Partial<CardTarget>): void;
   group: THREE.Group | null;
 };
 
@@ -300,6 +316,25 @@ export const Card = forwardRef<CardHandle, Props>(function Card(
       },
       resetCut() {
         cutT0.current = null;
+      },
+      snap(t) {
+        const g = group.current;
+        if (t.position !== undefined) {
+          target.current.position = t.position;
+          if (g) g.position.set(...t.position);
+        }
+        if (t.rotation !== undefined) {
+          target.current.rotation = t.rotation;
+          if (g) g.rotation.set(t.rotation[0], t.rotation[1], t.rotation[2]);
+        }
+        if (t.scale !== undefined) {
+          target.current.scale = t.scale;
+          if (g) g.scale.setScalar(t.scale);
+        }
+        if (t.opacity !== undefined) {
+          target.current.opacity = t.opacity;
+          opacityRef.current = t.opacity;
+        }
       },
       get group() {
         return group.current;
