@@ -1,58 +1,93 @@
 import { useAppStore } from "../state/store";
 
 /*
- * Typography mirrors the inner quest card (`QuestReveal.tsx`): the
- * "ACCEPTED" eyebrow matches the card's "SIDE QUEST" / "REQUIRED"
- * eyebrow style, and the message uses the same serif stack and weight
- * as the card title so the overlay reads as a continuation of the card,
- * not a separate UI surface.
+ * Centered title-card treatment for the accept beat. Three layers,
+ * top-to-bottom: the eyebrow + title, a soft dark radial pool that
+ * sits behind them to give the cream text a darker ground to read
+ * on, and the camera + green backdrop further below.
+ *
+ * The pool is essential. Without it the cream characters lose contrast
+ * against the saturated green and the title becomes hard to read.
+ * Radial (not rectangular) so it doesn't re-introduce the hard chrome
+ * panel that used to live here; the edges fade to nothing.
+ *
+ * The eyebrow leads at 300ms, the title follows at 650ms. The pool
+ * appears slightly before the eyebrow so the dark ground is in place
+ * by the time the text starts surfacing. All three share the same
+ * `acceptOutroFade` via the outer wrapper.
  */
 const EYEBROW_COLOR = "#d8ceaf";
 const TITLE_COLOR = "#f5efde";
-const SANS_STACK = "Inter, system-ui, sans-serif";
-const SERIF_STACK = '"Noto Serif JP", "Cormorant Garamond", serif';
+const SANS_STACK = '"Helvetica Neue", Inter, Arial, sans-serif';
+const SERIF_STACK = '"Playfair Display", "Cormorant Garamond", Georgia, serif';
 
 export function AcceptOverlay() {
   const phase = useAppStore((s) => s.phase);
 
   if (phase !== "accept" && phase !== "acceptOutro") return null;
 
-  // `accept` runs the entry pop; `acceptOutro` swaps in the fade-out
-  // keyframe so the panel eases off rather than hard-cutting at the
-  // moment the phase flips to idle. Duration here must match
-  // ACCEPT_OUTRO_MS in useAutoAdvance.ts.
-  const animation =
-    phase === "accept"
-      ? "acceptPop 0.8s ease-out"
-      : "acceptOutroFade 0.7s ease-in forwards";
+  // Outro fade lives on the outer container so the dark pool, eyebrow,
+  // and title all fade together as one unit when phase becomes
+  // acceptOutro. Children's `forwards` persistence keeps them at their
+  // landed opacity through the outro; the wrapper's fade composes
+  // through to invisible.
+  const wrapperAnimation =
+    phase === "acceptOutro"
+      ? "acceptOutroFade 0.7s ease-in forwards"
+      : undefined;
+
+  // Pool, eyebrow, title each animate in with their own delay.
+  // Animation prop is identical across accept and acceptOutro so the
+  // `forwards` persistence holds the landed state through the outro;
+  // without that, removing the animation when phase flips would snap
+  // the inline `opacity: 0` back and the wrapper fade would have
+  // nothing to compose against.
+  const poolAnimation = "acceptTextIn 0.4s ease-out 200ms forwards";
+  const eyebrowAnimation = "acceptTextIn 0.5s ease-out 300ms forwards";
+  const titleAnimation = "acceptTextIn 0.5s ease-out 650ms forwards";
 
   return (
-    <div className="pointer-events-none absolute inset-0 flex items-end justify-center pb-6">
+    <div
+      className="pointer-events-none absolute inset-0 flex items-center justify-center"
+      style={{ animation: wrapperAnimation }}
+    >
+      {/* Dark radial pool. Strongest at centre, fades to transparent
+          well before reaching the viewport edges so the green
+          backdrop is unaffected outside the title-card region. */}
       <div
         style={{
-          animation,
+          position: "absolute",
+          inset: 0,
+          background:
+            "radial-gradient(ellipse 40% 32% at center, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.32) 55%, rgba(0,0,0,0) 100%)",
+          opacity: 0,
+          animation: poolAnimation,
+          pointerEvents: "none",
+        }}
+      />
+
+      <div
+        style={{
           display: "flex",
           flexDirection: "column",
           alignItems: "center",
-          gap: 18,
-          padding: "20px 44px 22px",
-          borderRadius: 6,
-          background: "rgba(15, 26, 42, 0.62)",
-          backdropFilter: "blur(14px) saturate(120%)",
-          WebkitBackdropFilter: "blur(14px) saturate(120%)",
-          border: "1px solid rgba(216, 206, 175, 0.18)",
-          boxShadow:
-            "0 18px 40px rgba(0,0,0,0.45), 0 2px 0 rgba(255,255,255,0.04) inset",
+          gap: 24,
+          position: "relative",
+          zIndex: 1,
         }}
       >
         <span
           style={{
             fontFamily: SANS_STACK,
-            fontSize: 13,
+            fontSize: "clamp(13px, 1.2vw, 18px)",
             fontWeight: 500,
-            letterSpacing: "0.32em",
+            letterSpacing: "0.42em",
             textTransform: "uppercase",
             color: EYEBROW_COLOR,
+            textShadow: "0 1px 3px rgba(0, 0, 0, 0.55)",
+            opacity: 0,
+            transform: "scale(0.9)",
+            animation: eyebrowAnimation,
           }}
         >
           Side Quest
@@ -60,12 +95,18 @@ export function AcceptOverlay() {
         <span
           style={{
             fontFamily: SERIF_STACK,
-            fontSize: 36,
-            fontWeight: 700,
-            lineHeight: 1.1,
-            letterSpacing: "-0.01em",
+            fontStyle: "italic",
+            fontWeight: 600,
+            fontSize: "clamp(48px, 6vw, 88px)",
+            lineHeight: 0.95,
+            letterSpacing: "-0.015em",
             color: TITLE_COLOR,
             textAlign: "center",
+            textShadow:
+              "0 2px 12px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.55)",
+            opacity: 0,
+            transform: "scale(0.9)",
+            animation: titleAnimation,
           }}
         >
           Accepted

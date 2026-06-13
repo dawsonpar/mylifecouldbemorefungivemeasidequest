@@ -36,32 +36,28 @@ body,
   height: 0;
 }
 
-@keyframes acceptPop {
+/*
+ * Per-element entrance for the accept overlay. Each text node (eyebrow,
+ * title) animates in independently with its own `animation-delay` so
+ * the words don't surface at once. Scale lands a touch shy of 1.0 in
+ * the keyframe so the resting state reads as steady rather than
+ * "still arriving" — duration handles the visual settle, not bounce.
+ */
+@keyframes acceptTextIn {
   0% {
     opacity: 0;
-    transform: translateY(8px) scale(0.85);
-  }
-  60% {
-    transform: translateY(-2px) scale(1.04);
+    transform: scale(0.9);
   }
   100% {
     opacity: 1;
-    transform: translateY(0) scale(1);
+    transform: scale(1);
   }
 }
 
 /*
- * Full-screen accept flash. Three discrete pulses then a fade.
- * Driven by the compositor so the main thread (and the MediaPipe
- * camera-feed pipeline) is not blocked by per-frame React renders.
- * Peak opacity lives in the keyframe (0.85); duration is set on the
- * `animation` shorthand at the call site.
- */
-/*
- * Outro fade for the accept-state HUD layers (AcceptOverlay panel +
- * QuestReveal inner card). Runs once when phase becomes
- * `acceptOutro`. Slight downward drift keeps the panels feeling
- * "settled" rather than blinked off. Duration must match
+ * Outro fade for the AcceptOverlay text wrapper. Runs once when phase
+ * becomes `acceptOutro`. Slight downward drift keeps the elements
+ * feeling "settled" rather than blinked off. Duration must match
  * `ACCEPT_OUTRO_MS` in useAutoAdvance.ts.
  */
 @keyframes acceptOutroFade {
@@ -75,24 +71,73 @@ body,
   }
 }
 
+/*
+ * Quest card dim during the accept beat. The card recedes to a faint
+ * ghost (~18% opacity, light blur) so the centered title-card text
+ * dominates the moment. Matches the locked title-card mockup; at this
+ * level the card's own "SIDE QUEST" eyebrow disappears as readable
+ * text so it doesn't compete with the overlay's eyebrow.
+ */
+@keyframes questCardDim {
+  0% {
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    opacity: 0.18;
+    filter: blur(1.5px);
+  }
+}
+
+/*
+ * Quest card outro. Continues from the ghosted end-state of
+ * questCardDim down to fully invisible, with the same downward drift
+ * as acceptOutroFade so the two outros read as a single coordinated
+ * fade. Used by QuestReveal during `acceptOutro` only.
+ */
+@keyframes questCardOutro {
+  0% {
+    opacity: 0.18;
+    filter: blur(1.5px);
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    filter: blur(1.5px);
+    transform: translateY(6px);
+  }
+}
+
+/*
+ * Full-screen accept backdrop. NOT a flash — a sustained green tint
+ * that establishes the moment, holds steady while the title-card
+ * text is on screen, then fades out in lockstep with that text.
+ *
+ * Envelope synchronised to the full accept→acceptOutro window
+ * (3.1s = ACCEPT_HOLD_MS + ACCEPT_OUTRO_MS):
+ *   - fade in: 0% → 10%   ramps from 0 to sustained 0.55 (~310ms),
+ *                         giving the text a beat to appear over an
+ *                         already-established green ground. Normal
+ *                         (not screen) blend in the call site, so
+ *                         this is a real coverage layer providing
+ *                         contrast for the cream text.
+ *   - hold:    10% → 77%  stays at 0.55 (1.0s) through the rest of
+ *                         the accept hold
+ *   - fade out: 77% → 100% decays to 0 in step with the text outro
+ *                          (700ms ACCEPT_OUTRO_MS)
+ * Compositor-driven so the MediaPipe camera-feed pipeline is not
+ * blocked. Component must stay mounted across accept AND acceptOutro
+ * so the animation runs to completion without restarting.
+ */
 @keyframes acceptFlash {
   0% {
     opacity: 0;
   }
-  14% {
-    opacity: 0.85;
+  10% {
+    opacity: 0.55;
   }
-  32% {
-    opacity: 0.05;
-  }
-  44% {
-    opacity: 0.85;
-  }
-  62% {
-    opacity: 0.05;
-  }
-  68% {
-    opacity: 0.85;
+  77% {
+    opacity: 0.55;
   }
   100% {
     opacity: 0;
