@@ -1,4 +1,12 @@
 import type { SashikoPattern } from "../scene/sashiko-patterns";
+import type { KnicksVariant } from "../scene/knicks-card";
+
+/**
+ * Inner-card visual theme. Defaults to the sashiko design when
+ * omitted. The "knicks-*" themes render the locked Knicks card faces
+ * (see `knicks-card.tsx`) and ignore the `pattern` field.
+ */
+export type CardTheme = "sashiko" | KnicksVariant;
 
 export type Quest = {
   id: string;
@@ -9,9 +17,15 @@ export type Quest = {
    * Pins the inner-card sashiko pattern for this quest. Omitted =
    * fall back to DEFAULT_PATTERN. Used to vary the card design per
    * episode for filming without surfacing any override indicator on
-   * camera.
+   * camera. Ignored when `theme` is a non-sashiko value.
    */
   pattern?: SashikoPattern;
+  /**
+   * Pins the inner-card theme for this quest. Omitted = "sashiko".
+   * Set to a "knicks-*" variant to render the locked Knicks faces
+   * (used for the ep5 tech-conference film card).
+   */
+  theme?: CardTheme;
 };
 
 export type AcceptedQuest = {

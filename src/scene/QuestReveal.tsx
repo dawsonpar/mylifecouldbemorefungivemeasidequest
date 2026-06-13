@@ -11,6 +11,7 @@ import {
   SashikoPatternDefs,
   resolvePattern,
 } from "./sashiko-patterns";
+import { KnicksCardFace, type KnicksVariant } from "./knicks-card";
 
 // Card sits at world-center (y=0) at the pack's z so it reads as
 // vertically centered on a recorded frame. The pack itself is
@@ -70,6 +71,10 @@ function InnerCard({
   const devOverride = useAppStore((s) => s.devPatternOverride);
   const pattern = resolvePattern(quest.pattern, devOverride);
   const { fillId } = SASHIKO_PATTERNS[pattern];
+  const theme = quest.theme ?? "sashiko";
+  const isKnicks = theme === "knicks-fade" || theme === "knicks-burst";
+  const knicks = useMemo(() => splitKnicksTitle(quest.title), [quest.title]);
+  const knicksDesc = capitalizeFirst(quest.description);
 
   const SLIDE_DELAY = 0.35;
   const SLIDE_DURATION = 0.7;
@@ -140,6 +145,17 @@ function InnerCard({
         distanceFactor={1}
         style={{ pointerEvents: "none" }}
       >
+        {isKnicks ? (
+          <div style={{ width: `${pxW}px`, height: `${pxH}px` }}>
+            <KnicksCardFace
+              variant={theme as KnicksVariant}
+              kicker={knicks.kicker}
+              heroLines={knicks.heroLines}
+              description={knicksDesc}
+            />
+          </div>
+        ) : (
+          <>
         <SashikoPatternDefs />
         <div
           style={{
@@ -151,14 +167,22 @@ function InnerCard({
             background: "linear-gradient(180deg, #1a3a5c 0%, #14304d 100%)",
             color: "#efeadc",
             fontFamily: "Inter, system-ui, sans-serif",
-            // Fade-out keyframe runs only during acceptOutro. Duration
-            // matches ACCEPT_OUTRO_MS in useAutoAdvance.ts; `forwards`
-            // pins opacity at 0 so the card stays invisible through
-            // the brief gap before idle takes over.
+            // The quest card has two animated states tied to phase:
+            //   - accept:      dims to 40% opacity so the centered
+            //                  AcceptOverlay title reads on top while
+            //                  the quest content stays recognisable.
+            //   - acceptOutro: continues the dim down to fully
+            //                  invisible (and drifts down slightly),
+            //                  in lockstep with the AcceptOverlay
+            //                  wrapper's acceptOutroFade.
+            // Both keyframes use `forwards` so the end state persists
+            // through the brief gap before the next phase takes over.
             animation:
-              phase === "acceptOutro"
-                ? "acceptOutroFade 0.7s ease-in forwards"
-                : undefined,
+              phase === "accept"
+                ? "questCardDim 0.7s ease-out forwards"
+                : phase === "acceptOutro"
+                  ? "questCardOutro 0.7s ease-in forwards"
+                  : undefined,
           }}
         >
           {/* indigo cloth grain */}
@@ -302,9 +326,35 @@ function InnerCard({
             )}
           </div>
         </div>
+          </>
+        )}
       </Html>
     </group>
   );
+}
+
+/**
+ * Splits a quest title into a small kicker + a stacked hero wordmark
+ * for the Knicks faces. "Go to a tech conference" -> kicker "GO TO A",
+ * hero ["tech", "conference"] (one word per line, CSS upper-cases).
+ * Falls back to a generic "SIDE QUEST" kicker + the whole title.
+ */
+function splitKnicksTitle(title: string): {
+  kicker: string;
+  heroLines: string[];
+} {
+  const m = title.match(/^go to (a|an|the)\s+(.+)$/i);
+  if (m) {
+    return {
+      kicker: `go to ${m[1]}`.toUpperCase(),
+      heroLines: m[2].trim().split(/\s+/),
+    };
+  }
+  return { kicker: "SIDE QUEST", heroLines: [title] };
+}
+
+function capitalizeFirst(s: string): string {
+  return s.length ? s[0].toUpperCase() + s.slice(1) : s;
 }
 
 function easeOutCubic(x: number): number {
