@@ -30,7 +30,7 @@ pnpm-debug.log*
 # Project private
 quests.json
 .analysis/
-.claude-coord/
+.agent-contracts/
 .claude/handoff/
 
 # Vercel
